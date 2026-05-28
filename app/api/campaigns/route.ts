@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '../../../lib/prisma'
 import type { CampaignDTO, CampaignCreateDTO } from '../../../lib/types'
+import type { Campaign as PrismaCampaign } from '@prisma/client'
 
 export async function GET() {
   try {
@@ -8,7 +9,7 @@ export async function GET() {
       orderBy: { createdAt: 'desc' }
     })
 
-    const campaignDto: CampaignDTO[] = campaigns.map(campaign => ({
+    const campaignDto: CampaignDTO[] = campaigns.map((campaign: PrismaCampaign) => ({
       id: campaign.id.toString(),
       title: campaign.title ?? '',
       description: campaign.description ?? '',

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '../../../../../lib/prisma'
 import pusher from '../../../../../lib/pusher'
 import type { MessageDTO, MessageCreateDTO } from '../../../../../lib/types'
+import type { Message as PrismaMessage } from '@prisma/client'
 
 export async function GET(
   _request: Request,
@@ -18,7 +19,7 @@ export async function GET(
       orderBy: { createdAt: 'asc' }
     })
 
-    const messageDto: MessageDTO[] = messages.map(message => ({
+    const messageDto: MessageDTO[] = messages.map((message: PrismaMessage) => ({
       id: message.id.toString(),
       campaignId: message.campaignId.toString(),
       author: message.author,
