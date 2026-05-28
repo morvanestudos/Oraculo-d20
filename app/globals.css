@@ -1,0 +1,426 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Inter:wght@300;400;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #__next {
+  height: 100%;
+}
+
+body {
+  position: relative;
+  @apply text-gray-100 antialiased;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background-color: #070507;
+  background-image:
+    radial-gradient(circle at 20% 12%, rgba(124,58,237,0.16), transparent 15%),
+    radial-gradient(circle at 85% 90%, rgba(37,99,235,0.08), transparent 18%),
+    linear-gradient(180deg, rgba(8,6,6,0.96), rgba(4,3,3,1));
+  background-attachment: fixed;
+  background-blend-mode: overlay;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(212,177,106,0.10), transparent 18%),
+    radial-gradient(circle at 80% 30%, rgba(79,70,229,0.08), transparent 16%),
+    linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px),
+    linear-gradient(rgba(255,255,255,0.02), rgba(255,255,255,0.02));
+  background-size: 100% 100%, 100% 100%, 24px 24px, 24px 24px;
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+}
+
+.container {
+  @apply max-w-6xl mx-auto px-4;
+}
+
+.glass {
+  background: linear-gradient(180deg, rgba(16,12,8,0.92), rgba(8,6,4,0.85));
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.panel {
+  @apply p-4 rounded-2xl shadow-panel-md;
+  background: linear-gradient(180deg, rgba(15,11,7,0.94), rgba(8,5,3,0.88));
+  border: 1px solid rgba(212,177,106,0.12);
+}
+
+.header-shadow {
+  box-shadow: 0 4px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.title-cinematic {
+  font-family: Cinzel, serif;
+  letter-spacing: -0.02em;
+}
+
+.accent-glow {
+  background-image: linear-gradient(90deg, rgba(124,58,237,0.14), rgba(212,177,106,0.12));
+  border-radius: 8px;
+}
+
+.soft-glow {
+  box-shadow: 0 12px 40px rgba(79,70,229,0.12);
+}
+
+.tavern-bar {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+  background: linear-gradient(135deg, rgba(33,19,12,0.98), rgba(8,4,2,0.96));
+}
+
+.tavern-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(circle at 18% 25%, rgba(212,177,106,0.12), transparent 20%), radial-gradient(circle at 82% 25%, rgba(79,70,229,0.08), transparent 18%);
+  mix-blend-mode: screen;
+}
+
+.guild-logo {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(212,177,106,0.22);
+  background: linear-gradient(145deg, rgba(69,57,42,0.98), rgba(38,23,13,0.95));
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 12px 30px rgba(0,0,0,0.35);
+}
+
+.guild-logo svg {
+  filter: drop-shadow(0 0 5px rgba(212,177,106,0.35));
+}
+
+.nav-pill {
+  @apply px-4 py-2 rounded-full text-sm font-medium transition;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.nav-pill:hover {
+  background: rgba(212,177,106,0.12);
+  color: #f8e8b4;
+}
+
+.sidebar-scroll {
+  background: linear-gradient(180deg, rgba(14,10,7,0.98), rgba(6,3,2,0.96));
+  border-right: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-entry {
+  @apply flex items-center gap-3 px-3 py-2 rounded-lg transition;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+.sidebar-entry:hover {
+  background: rgba(145,92,182,0.12);
+  border-color: rgba(124,58,237,0.25);
+  box-shadow: 0 0 0 1px rgba(145,92,182,0.10), 0 16px 38px rgba(79,70,229,0.08);
+}
+
+.sidebar-entry svg {
+  min-width: 1.25rem;
+}
+
+.adventure-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(212,177,106,0.16);
+  background: linear-gradient(180deg, rgba(15,11,7,0.96), rgba(8,5,3,0.92));
+  box-shadow: 0 20px 50px rgba(0,0,0,0.32);
+}
+
+.adventure-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at top right, rgba(212,177,106,0.08), transparent 25%);
+  pointer-events: none;
+}
+
+.adventure-card-header {
+  @apply p-5 border-b border-[rgba(255,255,255,0.06)];
+  background: linear-gradient(180deg, rgba(24,16,9,0.98), rgba(12,8,4,0.95));
+}
+
+.adventure-badge {
+  @apply inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold;
+  color: #f6e5b1;
+  background: rgba(212,177,106,0.12);
+  border: 1px solid rgba(212,177,106,0.18);
+}
+
+.character-sheet {
+  @apply p-5 rounded-3xl border border-[rgba(255,255,255,0.08)];
+  background: linear-gradient(180deg, rgba(14,10,7,0.96), rgba(7,4,2,0.92));
+  box-shadow: 0 16px 40px rgba(0,0,0,0.28);
+}
+
+.character-sheet .section-title {
+  @apply text-sm font-semibold uppercase tracking-[0.2em] text-muted mb-3;
+}
+
+.stat-rune {
+  @apply flex flex-col items-center justify-between p-4 rounded-3xl border border-[rgba(255,255,255,0.06)];
+  background: rgba(255,255,255,0.03);
+}
+
+.stat-rune::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  background: radial-gradient(circle at top left, rgba(212,177,106,0.08), transparent 38%);
+  pointer-events: none;
+}
+
+.character-sheet .attr-label {
+  color: #d4b16a;
+}
+
+.hp-vial {
+  @apply h-3 rounded-full overflow-hidden bg-[rgba(255,255,255,0.08)];
+  background-image: linear-gradient(90deg, rgba(212,177,106,0.12), rgba(124,58,237,0.08));
+}
+
+.inventory-item {
+  @apply flex items-center justify-between bg-[rgba(255,255,255,0.04)] p-3 rounded-2xl border border-[rgba(255,255,255,0.06)];
+}
+
+.inventory-item::before {
+  content: '🎒';
+  margin-right: 0.75rem;
+}
+
+.dice-altar {
+  @apply flex items-center gap-4 p-4 rounded-3xl border border-[rgba(255,255,255,0.08)];
+  background: linear-gradient(180deg, rgba(14,9,5,0.95), rgba(8,4,2,0.92));
+}
+
+.dice-altar .die-face {
+  @apply w-16 h-16 rounded-3xl flex items-center justify-center text-2xl font-bold;
+  background: linear-gradient(135deg, rgba(124,58,237,0.24), rgba(37,99,235,0.12));
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow: 0 16px 40px rgba(79,70,229,0.16);
+}
+
+.dice-button {
+  @apply px-4 py-2 rounded-full font-semibold text-black transition;
+  background: linear-gradient(135deg, rgba(212,177,106,0.96), rgba(124,58,237,0.96));
+}
+
+.dice-button:hover {
+  transform: translateY(-1px);
+}
+
+.combat-diary {
+  @apply p-4 rounded-3xl border border-[rgba(255,255,255,0.08)];
+  background: linear-gradient(180deg, rgba(12,8,4,0.96), rgba(6,3,2,0.92));
+}
+
+.combat-diary .combat-header {
+  @apply flex items-center justify-between mb-3;
+}
+
+.combat-diary .combat-entry {
+  @apply bg-[rgba(255,255,255,0.03)] p-3 rounded-2xl border border-[rgba(255,255,255,0.06)];
+}
+
+.chat-scroll {
+  @apply rounded-3xl border border-[rgba(255,255,255,0.08)] bg-[rgba(6,4,2,0.85)];
+  background-image: radial-gradient(circle at top right, rgba(212,177,106,0.04), transparent 20%);
+}
+
+.chat-message-master {
+  @apply p-4 rounded-3xl border border-[rgba(212,177,106,0.12)] text-white;
+  background: radial-gradient(circle at top left, rgba(124,58,237,0.12), transparent 30%);
+}
+
+.chat-message-player {
+  @apply p-4 rounded-3xl border border-[rgba(37,99,235,0.16)] text-gray-100;
+  background: linear-gradient(180deg, rgba(10,8,6,0.92), rgba(15,10,6,0.98));
+}
+
+.chat-message-system {
+  @apply p-4 rounded-3xl border border-[rgba(255,255,255,0.08)] text-muted;
+  background: rgba(255,255,255,0.03);
+}
+
+.chat-input {
+  @apply flex gap-2 items-center rounded-3xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-3;
+}
+
+.chat-input input {
+  @apply flex-1 bg-transparent outline-none text-sm text-gray-100;
+}
+
+.chat-input button {
+  @apply px-4 py-2 rounded-full font-semibold text-black;
+  background: linear-gradient(135deg, rgba(212,177,106,0.96), rgba(124,58,237,0.96));
+}
+
+.hero-scroll {
+  @apply p-8 rounded-[2rem] border border-[rgba(255,255,255,0.08)];
+  background: linear-gradient(180deg, rgba(15,10,6,0.96), rgba(7,4,2,0.92));
+  box-shadow: 0 24px 60px rgba(0,0,0,0.35);
+}
+
+.hero-scroll h1 {
+  @apply text-5xl lg:text-6xl font-bold title-cinematic;
+}
+
+.hero-scroll p {
+  @apply text-muted;
+}
+
+.hero-cta {
+  @apply inline-flex items-center gap-3 px-6 py-3 rounded-full text-sm font-semibold shadow;
+  background: linear-gradient(135deg, rgba(212,177,106,0.96), rgba(124,58,237,0.96));
+  transition: all 0.3s ease;
+}
+
+.hero-cta:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 48px rgba(212,177,106,0.28);
+}
+
+.action-secondary {
+  @apply inline-flex items-center gap-3 px-6 py-3 rounded-full text-sm border border-[rgba(255,255,255,0.08)];
+  transition: all 0.3s ease;
+}
+
+.action-secondary:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(212,177,106,0.22);
+}
+
+/* Enhanced form inputs */
+input[type="text"],
+input[type="email"],
+input[type="number"],
+textarea,
+select {
+  @apply bg-transparent border border-[rgba(255,255,255,0.08)] rounded-2xl p-3 text-gray-100;
+  transition: all 0.3s ease;
+}
+
+input[type="text"]:focus,
+input[type="email"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+  @apply outline-none;
+  border-color: rgba(212,177,106,0.32);
+  background: rgba(212,177,106,0.06);
+  box-shadow: 0 0 0 2px rgba(212,177,106,0.12);
+}
+
+/* Enhanced buttons */
+button:not(.dice-button):not(.nav-pill) {
+  transition: all 0.3s ease;
+}
+
+button[type="submit"] {
+  @apply px-6 py-3 bg-gradient-to-r from-arcane to-accent text-black rounded-full font-semibold;
+  box-shadow: 0 8px 32px rgba(79,70,229,0.24);
+}
+
+button[type="submit"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 48px rgba(124,58,237,0.32);
+}
+
+/* Enhanced glass panels */
+.glass {
+  box-shadow: 0 16px 48px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+
+/* Medieval card styles */
+.panel.glass {
+  box-shadow: 0 24px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(212,177,106,0.08);
+  transition: all 0.3s ease;
+}
+
+.panel.glass:hover {
+  box-shadow: 0 32px 72px rgba(0,0,0,0.40), inset 0 1px 0 rgba(212,177,106,0.12);
+  border-color: rgba(212,177,106,0.22);
+}
+
+/* Sticky positioning for sidebars */
+@media (min-height: 1024px) {
+  .sticky {
+    position: sticky;
+    top: 1.5rem;
+  }
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 rgba(124,58,237,0); }
+  50% { box-shadow: 0 0 28px rgba(124,58,237,0.24); }
+  100% { box-shadow: 0 0 0 rgba(124,58,237,0); }
+}
+
+.dice-altar .die-face.animate {
+  animation: pulse-glow 1.4s ease-in-out infinite;
+}
+
+/* Scrollbar styling for dark theme */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(212,177,106,0.4);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(212,177,106,0.6);
+}
+
+/* Dark theme specific enhancements */
+html {
+  color-scheme: dark;
+}
+
+/* Label styling */
+label {
+  @apply text-sm font-medium text-gray-200;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+
+/* Status messages */
+.text-blood {
+  color: #dc2626;
+}
+
+.text-arcane {
+  color: #4f46e5;
+}
+
+.text-gold {
+  color: #d4b16a;
+}
+
+.text-muted {
+  color: #9ca3af;
+}
