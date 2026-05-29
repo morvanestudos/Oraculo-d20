@@ -57,7 +57,9 @@ export default function ChatBox({ campaignId, campaign, character }: ChatBoxProp
           campaignId,
           author: 'Mestre IA',
           role: 'master',
-          content: 'As tochas tremulam enquanto a aventura começa. Descrevam suas ações, viajantes.',
+          content: campaign.description
+  ? `${campaign.description}\n\nO Mestre aguarda. Apresente seu personagem e declare sua primeira ação.`
+  : 'As tochas tremulam enquanto a aventura começa. Apresentem seus personagens e declarem suas primeiras ações, viajantes.',
           createdAt: new Date().toISOString()
         }
         setMessages([initialMessage])
@@ -86,7 +88,9 @@ export default function ChatBox({ campaignId, campaign, character }: ChatBoxProp
           campaignId,
           author: 'Mestre IA',
           role: 'master',
-          content: 'As tochas tremulam enquanto a aventura começa. Descrevam suas ações, viajantes.',
+          content: campaign.description
+  ? `${campaign.description}\n\nO Mestre aguarda. Apresente seu personagem e declare sua primeira ação.`
+  : 'As tochas tremulam enquanto a aventura começa. Apresentem seus personagens e declarem suas primeiras ações, viajantes.',
           createdAt: new Date().toISOString()
         }
         setMessages([initialMessage])

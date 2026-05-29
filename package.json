@@ -7,7 +7,13 @@
     "build": "prisma generate && next build",
     "start": "next start -p 3000",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev"
+    "prisma:migrate": "prisma migrate dev",
+    "db:migrate": "prisma migrate dev --name quests",
+    "db:seed": "npx tsx prisma/seed.ts",
+    "db:reset": "prisma migrate dev --name quests && npx tsx prisma/seed.ts"
+  },
+  "prisma": {
+    "seed": "npx tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
