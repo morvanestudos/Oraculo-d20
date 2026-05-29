@@ -1,17 +1,24 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
-import { getActiveCharacter, getCampaignById, getCharacters, setActiveCharacter as persistActiveCharacter, saveCharacter } from '../../../lib/storage'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  getActiveCharacter, getCampaignById, getCharacters,
+  setActiveCharacter as persistActiveCharacter, saveCharacter,
+  getPlayerId, getPlayerName, setPlayerName,
+} from '../../../lib/storage'
 import { fetchCharacters, updateCharacter } from '../../../lib/api/characters'
+import { createPusherClient } from '../../../lib/pusher-client'
 import DiceRoller from '../../../components/DiceRoller'
 import ChatBox from '../../../components/ChatBox'
 import CharacterSheet from '../../../components/CharacterSheet'
 import FantasyBackground from '../../../components/FantasyBackground'
 import QuestLog from '../../../components/QuestLog'
-import type { Campaign, Character } from '../../../lib/types'
+import GuestEntryModal from '../../../components/GuestEntryModal'
+import type { Campaign, Character, CampaignPlayer } from '../../../lib/types'
 
 export default function CampaignRoom({ params }: { params: { id: string } }) {
   const id = params.id
+
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [campaignCharacters, setCampaignCharacters] = useState<Character[]>([])
   const [availableCharacters, setAvailableCharacters] = useState<Character[]>([])
@@ -21,55 +28,166 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   const [joinError, setJoinError] = useState<string | null>(null)
   const [isJoining, setIsJoining] = useState(false)
 
-  function handleSelectCharacter(character: Character) {
-    persistActiveCharacter(character)
-    setActiveCharacter(character)
+  // Multiuser state
+  const [playerName, setPlayerNameState] = useState<string | null>(null)
+  const [showGuestModal, setShowGuestModal] = useState(false)
+  const [onlinePlayers, setOnlinePlayers] = useState<CampaignPlayer[]>([])
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // ── Online players ──────────────────────────────────────────────
+  const fetchOnlinePlayers = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/campaigns/${id}/players`)
+      if (res.ok) setOnlinePlayers(await res.json())
+    } catch { /* silent */ }
+  }, [id])
+
+  // ── Join campaign ───────────────────────────────────────────────
+  const joinCampaign = useCallback(async (name: string) => {
+    const pid = getPlayerId()
+    try {
+      await fetch(`/api/campaigns/${id}/players/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: pid, playerName: name }),
+      })
+      await fetchOnlinePlayers()
+    } catch { /* silent */ }
+  }, [id, fetchOnlinePlayers])
+
+  // ── Link character to player ────────────────────────────────────
+  const linkCharacter = useCallback(async (character: Character) => {
+    const pid = getPlayerId()
+    const pName = getPlayerName()
+    if (!pid || !pName) return
+    try {
+      await fetch(`/api/campaigns/${id}/players/link-character`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          playerId: pid,
+          characterId: character.id,
+          characterName: character.name,
+        }),
+      })
+      await fetchOnlinePlayers()
+    } catch { /* silent */ }
+  }, [id, fetchOnlinePlayers])
+
+  // ── Guest entry flow ────────────────────────────────────────────
+  useEffect(() => {
+    const stored = getPlayerName()
+    if (stored) {
+      setPlayerNameState(stored)
+      joinCampaign(stored)
+    } else {
+      setShowGuestModal(true)
+    }
+  }, [joinCampaign])
+
+  function handleGuestJoin(name: string) {
+    setPlayerName(name)
+    setPlayerNameState(name)
+    setShowGuestModal(false)
+    joinCampaign(name)
   }
 
+  // ── Heartbeat ───────────────────────────────────────────────────
+  useEffect(() => {
+    if (!playerName) return
+    const pid = getPlayerId()
+
+    heartbeatRef.current = setInterval(() => {
+      fetch(`/api/campaigns/${id}/players/heartbeat`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: pid }),
+      }).catch(() => { /* silent */ })
+    }, 20_000)
+
+    return () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current)
+    }
+  }, [playerName, id])
+
+  // ── Pusher — player events ──────────────────────────────────────
+  useEffect(() => {
+    const pusher = createPusherClient()
+    if (!pusher) return
+
+    const channel = pusher.subscribe(`campaign-${id}`)
+    channel.bind('player-joined', fetchOnlinePlayers)
+    channel.bind('character-linked', fetchOnlinePlayers)
+
+    return () => {
+      channel.unbind('player-joined', fetchOnlinePlayers)
+      channel.unbind('character-linked', fetchOnlinePlayers)
+      pusher.unsubscribe(`campaign-${id}`)
+      pusher.disconnect()
+    }
+  }, [id, fetchOnlinePlayers])
+
+  // ── Periodic refresh of online players (every 30s) ─────────────
+  useEffect(() => {
+    fetchOnlinePlayers()
+    const interval = setInterval(fetchOnlinePlayers, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchOnlinePlayers])
+
+  // ── Character helpers ───────────────────────────────────────────
   function mergeCharacters(remote: Character[], local: Character[]) {
     const merged = new Map<string, Character>()
-    local.forEach(character => merged.set(character.id, character))
-    remote.forEach(character => merged.set(character.id, character))
+    local.forEach(c => merged.set(c.id, c))
+    remote.forEach(c => merged.set(c.id, c))
     return Array.from(merged.values())
   }
 
   async function handleUseCharacter(character: Character) {
     setJoinError(null)
     setIsJoining(true)
-
-    const targetCampaignId = id
-    const patchedCharacter = { ...character, campaignId: targetCampaignId }
+    const patchedCharacter = { ...character, campaignId: id }
 
     try {
-      const updated = await updateCharacter(character.id, { campaignId: targetCampaignId })
+      const updated = await updateCharacter(character.id, { campaignId: id })
       persistActiveCharacter(updated)
-      if (updated.campaignId === targetCampaignId) {
-        setCampaignCharacters(prev => {
-          const exists = prev.some(item => item.id === updated.id)
-          return exists ? prev.map(item => (item.id === updated.id ? updated : item)) : [updated, ...prev]
-        })
-      }
-      setAvailableCharacters(prev => {
-        const exists = prev.some(item => item.id === updated.id)
-        return exists ? prev.map(item => (item.id === updated.id ? updated : item)) : [updated, ...prev]
-      })
       setActiveCharacter(updated)
-    } catch (error) {
-      console.error('Falha ao vincular personagem à campanha:', error)
+      setCampaignCharacters(prev =>
+        prev.some(c => c.id === updated.id)
+          ? prev.map(c => (c.id === updated.id ? updated : c))
+          : [updated, ...prev]
+      )
+      setAvailableCharacters(prev =>
+        prev.some(c => c.id === updated.id)
+          ? prev.map(c => (c.id === updated.id ? updated : c))
+          : [updated, ...prev]
+      )
+      await linkCharacter(updated)
+    } catch {
       saveCharacter(patchedCharacter)
       persistActiveCharacter(patchedCharacter)
       setActiveCharacter(patchedCharacter)
-      setCampaignCharacters(prev => {
-        const exists = prev.some(item => item.id === patchedCharacter.id)
-        return exists ? prev.map(item => (item.id === patchedCharacter.id ? patchedCharacter : item)) : [patchedCharacter, ...prev]
-      })
-      setAvailableCharacters(prev => prev.map(item => (item.id === patchedCharacter.id ? patchedCharacter : item)))
-      setJoinError('Não foi possível atualizar o personagem no servidor. A campanha foi atualizada localmente.')
+      setCampaignCharacters(prev =>
+        prev.some(c => c.id === patchedCharacter.id)
+          ? prev.map(c => (c.id === patchedCharacter.id ? patchedCharacter : c))
+          : [patchedCharacter, ...prev]
+      )
+      setAvailableCharacters(prev =>
+        prev.map(c => (c.id === patchedCharacter.id ? patchedCharacter : c))
+      )
+      setJoinError('Não foi possível sincronizar com o servidor. Dados salvos localmente.')
+      await linkCharacter(patchedCharacter)
     } finally {
       setIsJoining(false)
     }
   }
 
+  function handleSelectCharacter(character: Character) {
+    persistActiveCharacter(character)
+    setActiveCharacter(character)
+    linkCharacter(character)
+  }
+
+  // ── Campaign load ───────────────────────────────────────────────
   useEffect(() => {
     const localActiveCharacter = getActiveCharacter()
     setActiveCharacter(localActiveCharacter)
@@ -77,33 +195,26 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     async function loadCampaign() {
       setIsLoading(true)
       try {
-        const [campaignResponse, campaignCharactersFromApi, allCharactersFromApi] = await Promise.all([
+        const [campaignRes, campaignChars, allChars] = await Promise.all([
           fetch(`/api/campaigns/${id}`),
           fetchCharacters(id),
-          fetchCharacters()
+          fetchCharacters(),
         ])
-
-        if (!campaignResponse.ok) {
-          throw new Error(`API retornou ${campaignResponse.status}`)
+        if (!campaignRes.ok) throw new Error(`API retornou ${campaignRes.status}`)
+        const campaignData: Campaign = await campaignRes.json()
+        setCampaign(campaignData)
+        setCampaignCharacters(campaignChars)
+        const localChars = getCharacters()
+        setAvailableCharacters(mergeCharacters(allChars, localChars))
+        if (!localActiveCharacter && campaignChars.length > 0) {
+          setActiveCharacter(campaignChars[0])
         }
-
-        const campaignFromApi: Campaign = await campaignResponse.json()
-        setCampaign(campaignFromApi)
-        setCampaignCharacters(campaignCharactersFromApi)
-
-        const localCharacters = getCharacters()
-        setAvailableCharacters(mergeCharacters(allCharactersFromApi, localCharacters))
-
-        if (!localActiveCharacter && campaignCharactersFromApi.length > 0) {
-          setActiveCharacter(campaignCharactersFromApi[0])
-        }
-      } catch (fetchError) {
-        console.error('Falha ao carregar campanha ou personagens da API:', fetchError)
-        setError('Não foi possível carregar dados do banco. Usando fallback localStorage.')
+      } catch {
+        setError('Não foi possível carregar dados do servidor. Usando dados locais.')
         setCampaign(getCampaignById(id))
-        const localCharacters = getCharacters()
-        setCampaignCharacters(localCharacters.filter(char => char.campaignId === id))
-        setAvailableCharacters(localCharacters)
+        const localChars = getCharacters()
+        setCampaignCharacters(localChars.filter(c => c.campaignId === id))
+        setAvailableCharacters(localChars)
       } finally {
         setIsLoading(false)
       }
@@ -112,178 +223,226 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     loadCampaign()
   }, [id])
 
-  if (isLoading) {
-    return <div className="text-muted">Carregando campanha...</div>
-  }
-
-  if (!campaign) {
-    return <div className="text-muted">Campanha não encontrada.</div>
-  }
+  // ── Render ──────────────────────────────────────────────────────
+  if (isLoading) return <div className="text-muted p-8">Carregando campanha...</div>
+  if (!campaign) return <div className="text-muted p-8">Campanha não encontrada.</div>
 
   return (
     <FantasyBackground image="/images/bg-campaign-room.jpg" overlayIntensity={0.66}>
+      {/* Guest entry modal — blocks until playerName is set */}
+      {showGuestModal && <GuestEntryModal onJoin={handleGuestJoin} />}
+
       <div className="min-h-screen flex flex-col">
         <div className="flex-1 container mx-auto px-6 py-8">
-    <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-      {error && <div className="text-sm text-blood">{error}</div>}
-      <div className="lg:col-span-3 space-y-4">
-        <div className="panel glass p-6 rounded-lg">
-          <div className="flex items-start justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold title-cinematic">{campaign.title}</h2>
-              <p className="text-sm text-muted mt-2">{campaign.description}</p>
-            </div>
-            <div className="text-sm text-muted">Nível {campaign.level}</div>
-          </div>
-        </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {error && <div className="lg:col-span-4 text-sm text-blood">{error}</div>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 panel glass p-4 rounded-lg">
-            <div className="mb-4">
-              <h3 className="font-semibold">Chat da Mesa</h3>
-              <p className="text-xs text-muted">Converse com jogadores e com o Mestre IA</p>
-            </div>
-            {campaign && <ChatBox campaignId={campaign.id} campaign={campaign} character={activeCharacter} />}
-          </div>
-
-          <div className="panel glass p-4 rounded-lg">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h4 className="font-semibold">Mestre IA</h4>
-                <div className="text-xs text-muted">Painel de controle</div>
-              </div>
-              {campaign && <DiceRoller campaignId={campaign.id} />}
-            </div>
-            <div className="text-sm text-muted">Logs de cena e sugestões do Mestre IA aparecerão aqui.</div>
-          </div>
-        </div>
-
-        <div className="panel glass p-4 rounded-lg">
-          <h3 className="font-semibold mb-2">Logs de Combate</h3>
-          <div className="bg-[#07070a] p-3 rounded h-32 overflow-y-auto text-sm text-muted">Sem eventos recentes.</div>
-        </div>
-      </div>
-
-      <aside className="space-y-4">
-        <div className="panel glass p-4 rounded-lg">
-          <QuestLog campaignId={campaign.id} />
-        </div>
-
-        <div className="panel glass p-4 rounded-lg">
-          <h3 className="font-semibold mb-3">Jogadores</h3>
-          <ul className="space-y-3 text-sm text-muted">
-            {campaign.players.map(p => (
-              <li key={p.id} className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{p.name}</div>
-                  <div className="text-xs">{p.characterName}</div>
-                </div>
-                <div className="text-xs text-muted">Lv {p.level}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {activeCharacter && activeCharacter.campaignId !== id && (
-          <div className="panel glass p-4 rounded-lg">
-            <h3 className="font-semibold mb-3">Entrar nesta campanha</h3>
-            <div className="text-sm text-muted mb-4">
-              O personagem ativo atual não está vinculado a esta campanha. Use-o para entrar diretamente na cena inicial.
-            </div>
-            <button
-              type="button"
-              disabled={isJoining}
-              onClick={() => handleUseCharacter(activeCharacter)}
-              className="w-full text-xs uppercase tracking-[0.2em] px-4 py-3 bg-gradient-to-r from-arcane to-accent text-black rounded-lg font-semibold"
-            >
-              {isJoining ? 'Entrando...' : 'Entrar nesta campanha com este personagem'}
-            </button>
-            {joinError && <div className="text-sm text-blood mt-3">{joinError}</div>}
-          </div>
-        )}
-
-        <div className="panel glass p-4 rounded-lg">
-          <h3 className="font-semibold mb-3">Meus personagens</h3>
-          {availableCharacters.length > 0 ? (
-            <ul className="space-y-3 text-sm text-muted">
-              {availableCharacters.map(character => {
-                const isActive = activeCharacter?.id === character.id
-                const isInCampaign = character.campaignId === id
-                return (
-                  <li key={character.id} className="border border-[rgba(255,255,255,0.08)] rounded-lg p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="font-medium">{character.name}</div>
-                        <div className="text-xs">{character.race} • {character.className}</div>
-                        <div className="text-xs text-muted">{character.campaignId ? `Campanha ${character.campaignId}` : 'Sem campanha'}</div>
-                      </div>
-                      <div className="flex flex-col gap-2 items-end">
-                        {isActive ? (
-                          <span className="text-[10px] uppercase tracking-[0.2em] text-arcane font-semibold">Ativo</span>
-                        ) : null}
-                        <button
-                          type="button"
-                          disabled={isJoining}
-                          onClick={() => handleUseCharacter(character)}
-                          className="text-xs uppercase tracking-[0.2em] px-3 py-2 bg-white/5 rounded-full hover:bg-white/10"
-                        >
-                          {isInCampaign ? 'Usar nesta campanha' : 'Usar nesta campanha'}
-                        </button>
-                      </div>
-                    </div>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <div className="text-sm text-muted">Não há personagens salvos. Crie um novo personagem para entrar na campanha.</div>
-          )}
-        </div>
-
-        <div className="panel glass p-4 rounded-lg">
-          <h3 className="font-semibold mb-3">Personagens da campanha</h3>
-          {campaignCharacters.length > 0 ? (
-            <ul className="space-y-3 text-sm text-muted">
-              {campaignCharacters.map(character => (
-                <li key={character.id} className="border border-[rgba(255,255,255,0.08)] rounded-lg p-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-medium">{character.name}</div>
-                      <div className="text-xs">{character.race} • {character.className}</div>
-                      <div className="text-xs text-muted">Nv {character.level}</div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {activeCharacter?.id === character.id ? (
-                        <span className="text-[10px] uppercase tracking-[0.2em] text-arcane font-semibold">Ativo</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSelectCharacter(character)}
-                          className="text-xs uppercase tracking-[0.2em] px-3 py-2 bg-white/5 rounded-full hover:bg-white/10"
-                        >
-                          Selecionar
-                        </button>
-                      )}
-                    </div>
+            {/* ── Main area ── */}
+            <div className="lg:col-span-3 space-y-4">
+              <div className="panel glass p-6 rounded-lg">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h2 className="text-2xl font-semibold title-cinematic">{campaign.title}</h2>
+                    <p className="text-sm text-muted mt-2">{campaign.description}</p>
                   </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="text-sm text-muted">Escolha ou crie um personagem para entrar nesta campanha.</div>
-          )}
-        </div>
+                  <div className="text-sm text-muted">Nível {campaign.level}</div>
+                </div>
+              </div>
 
-        <div className="panel glass p-4 rounded-lg sticky top-6">
-          <h3 className="font-semibold mb-3">Ficha ativa</h3>
-          {activeCharacter ? (
-            <CharacterSheet character={activeCharacter} />
-          ) : (
-            <div className="text-sm text-muted">Nenhum personagem salvo ainda. Crie um na página de personagem.</div>
-          )}
-        </div>
-      </aside>
-    </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2 panel glass p-4 rounded-lg">
+                  <div className="mb-4">
+                    <h3 className="font-semibold">Chat da Mesa</h3>
+                    <p className="text-xs text-muted">Converse com jogadores e com o Mestre IA</p>
+                  </div>
+                  {campaign && (
+                    <ChatBox
+                      campaignId={campaign.id}
+                      campaign={campaign}
+                      character={activeCharacter}
+                      playerName={playerName ?? 'Aventureiro'}
+                    />
+                  )}
+                </div>
+
+                <div className="panel glass p-4 rounded-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h4 className="font-semibold">Mestre IA</h4>
+                      <div className="text-xs text-muted">Painel de controle</div>
+                    </div>
+                    {campaign && <DiceRoller campaignId={campaign.id} />}
+                  </div>
+                  <div className="text-sm text-muted">Logs de cena e sugestões do Mestre IA aparecerão aqui.</div>
+                </div>
+              </div>
+
+              <div className="panel glass p-4 rounded-lg">
+                <h3 className="font-semibold mb-2">Logs de Combate</h3>
+                <div className="bg-[#07070a] p-3 rounded h-32 overflow-y-auto text-sm text-muted">Sem eventos recentes.</div>
+              </div>
+            </div>
+
+            {/* ── Sidebar ── */}
+            <aside className="space-y-4">
+              {/* Quests */}
+              <div className="panel glass p-4 rounded-lg">
+                <QuestLog campaignId={campaign.id} />
+              </div>
+
+              {/* Online players */}
+              <div className="panel glass p-4 rounded-lg">
+                <h3 className="font-semibold mb-3">
+                  Jogadores na mesa
+                  {onlinePlayers.length > 0 && (
+                    <span className="ml-2 text-xs text-arcane">({onlinePlayers.length})</span>
+                  )}
+                </h3>
+                {onlinePlayers.length === 0 ? (
+                  <p className="text-sm text-muted">Aguardando jogadores...</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {onlinePlayers.map(p => {
+                      const isMe = p.playerId === getPlayerId()
+                      const linkedChar = campaignCharacters.find(c => c.id === p.characterId)
+                        ?? availableCharacters.find(c => c.id === p.characterId)
+                      return (
+                        <li key={p.id} className="flex items-start gap-2 text-sm">
+                          <span style={{
+                            width: 8, height: 8, borderRadius: '50%',
+                            background: '#4ade80', flexShrink: 0, marginTop: 5,
+                            boxShadow: '0 0 6px #4ade80',
+                          }} />
+                          <div>
+                            <span className="font-medium">
+                              {p.playerName}{isMe && <span className="text-arcane text-xs ml-1">(você)</span>}
+                            </span>
+                            {linkedChar && (
+                              <div className="text-xs text-muted">
+                                {linkedChar.name} · {linkedChar.race} {linkedChar.className}
+                              </div>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
+
+              {/* Use character in campaign */}
+              {activeCharacter && activeCharacter.campaignId !== id && (
+                <div className="panel glass p-4 rounded-lg">
+                  <h3 className="font-semibold mb-3">Entrar nesta campanha</h3>
+                  <div className="text-sm text-muted mb-4">
+                    Seu personagem ativo não está vinculado a esta campanha.
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isJoining}
+                    onClick={() => handleUseCharacter(activeCharacter)}
+                    className="w-full text-xs uppercase tracking-[0.2em] px-4 py-3 bg-gradient-to-r from-arcane to-accent text-black rounded-lg font-semibold"
+                  >
+                    {isJoining ? 'Entrando...' : 'Entrar nesta campanha'}
+                  </button>
+                  {joinError && <div className="text-sm text-blood mt-3">{joinError}</div>}
+                </div>
+              )}
+
+              {/* My characters */}
+              <div className="panel glass p-4 rounded-lg">
+                <h3 className="font-semibold mb-3">Meus personagens</h3>
+                {availableCharacters.length > 0 ? (
+                  <ul className="space-y-3 text-sm text-muted">
+                    {availableCharacters.map(character => {
+                      const isActive = activeCharacter?.id === character.id
+                      const isInCampaign = character.campaignId === id
+                      const myPlayer = onlinePlayers.find(p => p.playerId === getPlayerId())
+                      const isLinked = myPlayer?.characterId === character.id
+                      return (
+                        <li key={character.id} className="border border-[rgba(255,255,255,0.08)] rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-medium">{character.name}</div>
+                              <div className="text-xs">{character.race} · {character.className}</div>
+                              {isLinked && (
+                                <div className="text-xs text-arcane mt-1">Vinculado à mesa</div>
+                              )}
+                            </div>
+                            <div className="flex flex-col gap-2 items-end">
+                              {isActive && (
+                                <span className="text-[10px] uppercase tracking-[0.2em] text-arcane font-semibold">Ativo</span>
+                              )}
+                              <button
+                                type="button"
+                                disabled={isJoining}
+                                onClick={() => handleUseCharacter(character)}
+                                className="text-xs uppercase tracking-[0.2em] px-3 py-2 bg-white/5 rounded-full hover:bg-white/10"
+                              >
+                                {isInCampaign ? 'Usar' : 'Entrar com este'}
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <div className="text-sm text-muted">Crie um personagem para entrar na campanha.</div>
+                )}
+              </div>
+
+              {/* Campaign characters */}
+              <div className="panel glass p-4 rounded-lg">
+                <h3 className="font-semibold mb-3">Personagens da campanha</h3>
+                {campaignCharacters.length > 0 ? (
+                  <ul className="space-y-3 text-sm text-muted">
+                    {campaignCharacters.map(character => {
+                      const owner = onlinePlayers.find(p => p.characterId === character.id)
+                      return (
+                        <li key={character.id} className="border border-[rgba(255,255,255,0.08)] rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-medium">{character.name}</div>
+                              <div className="text-xs">{character.race} · {character.className} Nv {character.level}</div>
+                              {owner && (
+                                <div className="text-xs text-arcane mt-1">Jogado por {owner.playerName}</div>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {activeCharacter?.id === character.id ? (
+                                <span className="text-[10px] uppercase tracking-[0.2em] text-arcane font-semibold">Ativo</span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectCharacter(character)}
+                                  className="text-xs uppercase tracking-[0.2em] px-3 py-2 bg-white/5 rounded-full hover:bg-white/10"
+                                >
+                                  Selecionar
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <div className="text-sm text-muted">Nenhum personagem nesta campanha ainda.</div>
+                )}
+              </div>
+
+              {/* Active character sheet */}
+              <div className="panel glass p-4 rounded-lg sticky top-6">
+                <h3 className="font-semibold mb-3">Ficha ativa</h3>
+                {activeCharacter ? (
+                  <CharacterSheet character={activeCharacter} />
+                ) : (
+                  <div className="text-sm text-muted">Nenhum personagem ativo. Crie um na página de personagem.</div>
+                )}
+              </div>
+            </aside>
+          </div>
         </div>
       </div>
     </FantasyBackground>

@@ -1,0 +1,66 @@
+import { NextResponse } from 'next/server'
+import prisma from '../../../../../../lib/prisma'
+import type { CampaignPlayer, CampaignPlayerJoinDTO } from '../../../../../../lib/types'
+
+function mapPlayer(raw: any): CampaignPlayer {
+  return {
+    id: String(raw.id),
+    campaignId: String(raw.campaignId),
+    playerId: raw.playerId,
+    playerName: raw.playerName,
+    characterId: raw.characterId != null ? String(raw.characterId) : null,
+    joinedAt: raw.joinedAt instanceof Date ? raw.joinedAt.toISOString() : String(raw.joinedAt),
+    lastSeenAt: raw.lastSeenAt instanceof Date ? raw.lastSeenAt.toISOString() : String(raw.lastSeenAt),
+  }
+}
+
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const campaignId = Number(params.id)
+  if (Number.isNaN(campaignId)) {
+    return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
+  }
+
+  try {
+    const { playerId, playerName } = (await req.json()) as CampaignPlayerJoinDTO
+
+    if (!playerId?.trim() || !playerName?.trim()) {
+      return NextResponse.json({ error: 'playerId e playerName são obrigatórios' }, { status: 400 })
+    }
+
+    const isNew = !(await prisma.campaignPlayer.findUnique({
+      where: { campaignId_playerId: { campaignId, playerId } },
+    }))
+
+    const player = await prisma.campaignPlayer.upsert({
+      where: { campaignId_playerId: { campaignId, playerId } },
+      update: { playerName: playerName.trim(), lastSeenAt: new Date() },
+      create: { campaignId, playerId, playerName: playerName.trim() },
+    })
+
+    const dto = mapPlayer(player)
+
+    // System message only on first join
+    if (isNew) {
+      await prisma.message.create({
+        data: {
+          campaignId,
+          author: 'Sistema',
+          role: 'system',
+          content: `${playerName.trim()} entrou na mesa.`,
+        },
+      })
+    }
+
+    try {
+      const { default: pusher } = await import('../../../../../../lib/pusher')
+      await pusher.trigger(`campaign-${campaignId}`, 'player-joined', dto)
+    } catch {
+      // Pusher opcional
+    }
+
+    return NextResponse.json(dto, { status: isNew ? 201 : 200 })
+  } catch (error) {
+    console.error('Erro ao entrar na campanha:', error)
+    return NextResponse.json({ error: 'Falha ao entrar na campanha' }, { status: 500 })
+  }
+}

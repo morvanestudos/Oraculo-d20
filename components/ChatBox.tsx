@@ -14,9 +14,10 @@ type ChatBoxProps = {
   campaignId: string
   campaign: Campaign
   character: Character | null
+  playerName: string
 }
 
-export default function ChatBox({ campaignId, campaign, character }: ChatBoxProps) {
+export default function ChatBox({ campaignId, campaign, character, playerName }: ChatBoxProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
   const [isMasterTyping, setIsMasterTyping] = useState(false)
@@ -125,7 +126,7 @@ export default function ChatBox({ campaignId, campaign, character }: ChatBoxProp
     const playerMessage: Message = {
       id: tempId,
       campaignId,
-      author: 'Você',
+      author: playerName,
       role: 'player',
       content,
       createdAt: new Date().toISOString()

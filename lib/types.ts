@@ -149,6 +149,21 @@ export type AIMasterRequest = {
   pendingTest?: PendingTest | null
 }
 
+export type CampaignPlayer = {
+  id: string
+  campaignId: string
+  playerId: string
+  playerName: string
+  characterId: string | null
+  joinedAt: string
+  lastSeenAt: string
+}
+
+export type CampaignPlayerJoinDTO = {
+  playerId: string
+  playerName: string
+}
+
 export type Quest = {
   id: string
   campaignId: string

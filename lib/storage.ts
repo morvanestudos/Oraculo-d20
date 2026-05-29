@@ -1,6 +1,8 @@
 import { campaigns as mockCampaigns } from './mock'
 import type { Campaign, Character, Message, PendingTest, CombatState, SceneState, CampaignMemory } from './types'
 
+const PLAYER_ID_KEY = 'oraculo-d20:player-id'
+const PLAYER_NAME_KEY = 'oraculo-d20:player-name'
 const CAMPAIGNS_KEY = 'oraculo-d20:campaigns'
 const CHARACTERS_KEY = 'oraculo-d20:characters'
 const ACTIVE_CHARACTER_KEY = 'oraculo-d20:active-character'
@@ -27,6 +29,26 @@ function parseStorage<T>(key: string, fallback: T): T {
 function saveStorage<T>(key: string, data: T) {
   if (!isClient()) return
   window.localStorage.setItem(key, JSON.stringify(data))
+}
+
+export function getPlayerId(): string {
+  if (!isClient()) return ''
+  let id = window.localStorage.getItem(PLAYER_ID_KEY)
+  if (!id) {
+    id = `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    window.localStorage.setItem(PLAYER_ID_KEY, id)
+  }
+  return id
+}
+
+export function getPlayerName(): string | null {
+  if (!isClient()) return null
+  return window.localStorage.getItem(PLAYER_NAME_KEY)
+}
+
+export function setPlayerName(name: string): void {
+  if (!isClient()) return
+  window.localStorage.setItem(PLAYER_NAME_KEY, name)
 }
 
 export function getCampaigns(): Campaign[] {

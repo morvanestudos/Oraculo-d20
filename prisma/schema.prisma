@@ -13,18 +13,32 @@ model User {
 }
 
 model Campaign {
-  id          Int       @id @default(autoincrement())
-  title       String
-  description String?
-  theme       String?
-  level       Int?
-  maxPlayers  Int?
-  createdAt   DateTime  @default(now())
-  characters  Character[]
-  messages    Message[]
-  combatState CombatState?
-  memory      CampaignMemory?
-  quests      Quest[]
+  id             Int               @id @default(autoincrement())
+  title          String
+  description    String?
+  theme          String?
+  level          Int?
+  maxPlayers     Int?
+  createdAt      DateTime          @default(now())
+  characters     Character[]
+  messages       Message[]
+  combatState    CombatState?
+  memory         CampaignMemory?
+  quests         Quest[]
+  campaignPlayers CampaignPlayer[]
+}
+
+model CampaignPlayer {
+  id          Int      @id @default(autoincrement())
+  campaignId  Int
+  playerId    String
+  playerName  String
+  characterId Int?
+  joinedAt    DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
+
+  @@unique([campaignId, playerId])
 }
 
 model Quest {
