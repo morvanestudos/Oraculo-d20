@@ -14,6 +14,9 @@ import CharacterSheet from '../../../components/CharacterSheet'
 import FantasyBackground from '../../../components/FantasyBackground'
 import QuestLog from '../../../components/QuestLog'
 import GuestEntryModal from '../../../components/GuestEntryModal'
+import CharacterPickerModal from '../../../components/CharacterPickerModal'
+import WaitingRoomPanel from '../../../components/WaitingRoomPanel'
+import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer } from '../../../lib/types'
 
 export default function CampaignRoom({ params }: { params: { id: string } }) {
@@ -33,6 +36,11 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   const [showGuestModal, setShowGuestModal] = useState(false)
   const [onlinePlayers, setOnlinePlayers] = useState<CampaignPlayer[]>([])
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // null = loading/unknown | false = no char linked | true = char linked
+  const [characterLinked, setCharacterLinked] = useState<boolean | null>(null)
+  // null = loading | false = waiting room | true = started
+  const [campaignStarted, setCampaignStarted] = useState<boolean | null>(null)
+  const [isStartingCampaign, setIsStartingCampaign] = useState(false)
 
   // Copy link
   const [copied, setCopied] = useState(false)
@@ -154,10 +162,14 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     const channel = pusher.subscribe(`campaign-${id}`)
     channel.bind('player-joined', fetchOnlinePlayers)
     channel.bind('character-linked', fetchOnlinePlayers)
+    channel.bind('player-updated', fetchOnlinePlayers)
+    channel.bind('campaign-started', () => setCampaignStarted(true))
 
     return () => {
       channel.unbind('player-joined', fetchOnlinePlayers)
       channel.unbind('character-linked', fetchOnlinePlayers)
+      channel.unbind('player-updated', fetchOnlinePlayers)
+      channel.unbind('campaign-started', () => setCampaignStarted(true))
       pusher.unsubscribe(`campaign-${id}`)
       pusher.disconnect()
     }
@@ -169,6 +181,16 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     const interval = setInterval(fetchOnlinePlayers, 30_000)
     return () => clearInterval(interval)
   }, [fetchOnlinePlayers])
+
+  // ── Detect if current player has a character linked ─────────────
+  useEffect(() => {
+    if (!playerName) return
+    if (onlinePlayers.length === 0) return
+    const myPlayer = onlinePlayers.find(p => p.playerId === getPlayerId())
+    if (myPlayer) {
+      setCharacterLinked(myPlayer.characterId != null)
+    }
+  }, [onlinePlayers, playerName])
 
   // ── Character helpers ───────────────────────────────────────────
   function mergeCharacters(remote: Character[], local: Character[]) {
@@ -198,6 +220,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
           : [updated, ...prev]
       )
       await linkCharacter(updated)
+      setCharacterLinked(true)
     } catch {
       saveCharacter(patchedCharacter)
       persistActiveCharacter(patchedCharacter)
@@ -212,6 +235,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
       )
       setJoinError('Não foi possível sincronizar com o servidor. Dados salvos localmente.')
       await linkCharacter(patchedCharacter)
+      setCharacterLinked(true)
     } finally {
       setIsJoining(false)
     }
@@ -221,6 +245,46 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     persistActiveCharacter(character)
     setActiveCharacter(character)
     linkCharacter(character)
+    setCharacterLinked(true)
+  }
+
+  async function handleToggleReady(ready: boolean) {
+    const pid = getPlayerId()
+    try {
+      await fetch(`/api/campaigns/${id}/players/ready`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerId: pid, ready }),
+      })
+      await fetchOnlinePlayers()
+    } catch (error) {
+      console.error('Erro ao atualizar status pronto:', error)
+    }
+  }
+
+  async function handleStartCampaign() {
+    if (isStartingCampaign) return
+    setIsStartingCampaign(true)
+    try {
+      const isTaverna = campaign?.title.toLowerCase().includes('taverna dos corvos')
+      const initialMessage = isTaverna
+        ? TAVERNA_INITIAL_MESSAGE
+        : campaign?.description
+          ? `${campaign.description}\n\nO Mestre aguarda. Apresentem seus personagens e declarem suas primeiras ações.`
+          : 'A aventura começa. O Mestre aguarda a primeira ação dos aventureiros.'
+
+      const res = await fetch(`/api/campaigns/${id}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initialMessage }),
+      })
+      if (!res.ok) throw new Error(`start retornou ${res.status}`)
+      setCampaignStarted(true)
+    } catch (error) {
+      console.error('Erro ao iniciar campanha:', error)
+    } finally {
+      setIsStartingCampaign(false)
+    }
   }
 
   // ── Campaign load ───────────────────────────────────────────────
@@ -231,10 +295,12 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     async function loadCampaign() {
       setIsLoading(true)
       try {
-        const [campaignRes, campaignChars, allChars] = await Promise.all([
+        const [campaignRes, campaignChars, allChars, messagesRes, memoryRes] = await Promise.all([
           fetch(`/api/campaigns/${id}`),
           fetchCharacters(id),
           fetchCharacters(),
+          fetch(`/api/campaigns/${id}/messages`),
+          fetch(`/api/campaigns/${id}/memory`),
         ])
         if (!campaignRes.ok) throw new Error(`API retornou ${campaignRes.status}`)
         const campaignData: Campaign = await campaignRes.json()
@@ -245,12 +311,19 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
         if (!localActiveCharacter && campaignChars.length > 0) {
           setActiveCharacter(campaignChars[0])
         }
+
+        // Determine if campaign has already started
+        const messages = messagesRes.ok ? await messagesRes.json() : []
+        const memory = memoryRes.ok ? await memoryRes.json() : null
+        const started = messages.length > 0 || memory?.storyFlags?.campaignStarted === true
+        setCampaignStarted(started)
       } catch {
         setError('Não foi possível carregar dados do servidor. Usando dados locais.')
         setCampaign(getCampaignById(id))
         const localChars = getCharacters()
         setCampaignCharacters(localChars.filter(c => c.campaignId === id))
         setAvailableCharacters(localChars)
+        setCampaignStarted(false) // assume not started on error
       } finally {
         setIsLoading(false)
       }
@@ -267,6 +340,30 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     <FantasyBackground image="/images/bg-campaign-room.jpg" overlayIntensity={0.66}>
       {/* Guest entry modal — blocks until playerName is set */}
       {showGuestModal && <GuestEntryModal onJoin={handleGuestJoin} />}
+
+      {/* Character picker — blocks until player links a character */}
+      {!showGuestModal && characterLinked === false && (
+        <CharacterPickerModal
+          campaignId={id}
+          availableCharacters={availableCharacters}
+          onlinePlayers={onlinePlayers}
+          onSelect={handleUseCharacter}
+          isJoining={isJoining}
+        />
+      )}
+
+      {/* Waiting room — blocks until campaign starts */}
+      {!showGuestModal && characterLinked !== false && campaignStarted === false && campaign && (
+        <WaitingRoomPanel
+          campaign={campaign}
+          players={onlinePlayers}
+          allCharacters={[...campaignCharacters, ...availableCharacters]}
+          myPlayerId={getPlayerId()}
+          onToggleReady={handleToggleReady}
+          onStartCampaign={handleStartCampaign}
+          isStarting={isStartingCampaign}
+        />
+      )}
 
       <div className="min-h-screen flex flex-col">
         <div className="flex-1 container mx-auto px-6 py-8">
@@ -338,7 +435,27 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                     <h3 className="font-semibold">Chat da Mesa</h3>
                     <p className="text-xs text-muted">Converse com jogadores e com o Mestre IA</p>
                   </div>
-                  {campaign && (
+                  {campaign && (characterLinked === false || campaignStarted === false) ? (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      height: 320,
+                      background: 'rgba(212,177,106,0.03)',
+                      border: '1px dashed rgba(212,177,106,0.15)',
+                      borderRadius: 8,
+                      color: '#7a6040',
+                      fontSize: '0.82rem',
+                      fontFamily: 'Georgia, serif',
+                      fontStyle: 'italic',
+                      textAlign: 'center',
+                      padding: '1rem',
+                    }}>
+                      {characterLinked === false
+                        ? 'Escolha um personagem para começar a jogar.'
+                        : 'Aguardando aventureiros se prepararem.'}
+                    </div>
+                  ) : campaign && campaignStarted === true && (
                     <ChatBox
                       campaignId={campaign.id}
                       campaign={campaign}
@@ -354,7 +471,9 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                       <h4 className="font-semibold">Mestre IA</h4>
                       <div className="text-xs text-muted">Painel de controle</div>
                     </div>
-                    {campaign && <DiceRoller campaignId={campaign.id} />}
+                    {campaign && characterLinked !== false && campaignStarted === true && (
+                      <DiceRoller campaignId={campaign.id} />
+                    )}
                   </div>
                   <div className="text-sm text-muted">Logs de cena e sugestões do Mestre IA aparecerão aqui.</div>
                 </div>

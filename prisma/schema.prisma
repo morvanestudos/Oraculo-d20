@@ -34,6 +34,7 @@ model CampaignPlayer {
   playerId    String
   playerName  String
   characterId Int?
+  ready       Boolean  @default(false)
   joinedAt    DateTime @default(now())
   lastSeenAt  DateTime @default(now())
   campaign    Campaign @relation(fields: [campaignId], references: [id])

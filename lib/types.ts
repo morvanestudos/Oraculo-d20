@@ -155,6 +155,7 @@ export type CampaignPlayer = {
   playerId: string
   playerName: string
   characterId: string | null
+  ready: boolean
   joinedAt: string
   lastSeenAt: string
 }

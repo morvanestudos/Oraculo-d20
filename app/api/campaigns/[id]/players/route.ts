@@ -9,6 +9,7 @@ function mapPlayer(raw: any): CampaignPlayer {
     playerId: raw.playerId,
     playerName: raw.playerName,
     characterId: raw.characterId != null ? String(raw.characterId) : null,
+    ready: raw.ready ?? false,
     joinedAt: raw.joinedAt instanceof Date ? raw.joinedAt.toISOString() : String(raw.joinedAt),
     lastSeenAt: raw.lastSeenAt instanceof Date ? raw.lastSeenAt.toISOString() : String(raw.lastSeenAt),
   }
