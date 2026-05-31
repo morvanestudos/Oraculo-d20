@@ -34,6 +34,25 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   const [onlinePlayers, setOnlinePlayers] = useState<CampaignPlayer[]>([])
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Copy link
+  const [copied, setCopied] = useState(false)
+  async function copyLink() {
+    const url = window.location.href
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = url
+      ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
+      document.body.appendChild(ta)
+      ta.focus()
+      ta.select()
+      try { document.execCommand('copy') } finally { document.body.removeChild(ta) }
+    }
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2200)
+  }
+
   // ── Online players ──────────────────────────────────────────────
   const fetchOnlinePlayers = useCallback(async () => {
     try {
@@ -240,12 +259,59 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
             {/* ── Main area ── */}
             <div className="lg:col-span-3 space-y-4">
               <div className="panel glass p-6 rounded-lg">
-                <div className="flex items-start justify-between">
-                  <div>
+                <style>{`
+                  @keyframes copy-glow {
+                    0%,100% { box-shadow: 0 0 0 rgba(212,177,106,0); }
+                    50%     { box-shadow: 0 0 14px rgba(212,177,106,0.35); }
+                  }
+                  .copy-link-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 6px;
+                    padding: 0.38rem 0.85rem;
+                    background: rgba(212,177,106,0.06);
+                    border: 1px solid rgba(212,177,106,0.28);
+                    border-radius: 5px;
+                    color: #c8a85a;
+                    font-size: 0.72rem;
+                    font-family: Cinzel, serif;
+                    letter-spacing: 0.08em;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                    white-space: nowrap;
+                  }
+                  .copy-link-btn:hover {
+                    background: rgba(212,177,106,0.12);
+                    border-color: rgba(212,177,106,0.55);
+                    color: #e8d08a;
+                    animation: copy-glow 1.4s ease-in-out infinite;
+                  }
+                  .copy-link-btn.copied {
+                    background: rgba(74,222,128,0.08);
+                    border-color: rgba(74,222,128,0.35);
+                    color: #4ade80;
+                    animation: none;
+                  }
+                `}</style>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
                     <h2 className="text-2xl font-semibold title-cinematic">{campaign.title}</h2>
                     <p className="text-sm text-muted mt-2">{campaign.description}</p>
                   </div>
-                  <div className="text-sm text-muted">Nível {campaign.level}</div>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    <div className="text-sm text-muted">Nível {campaign.level}</div>
+                    <button
+                      type="button"
+                      onClick={copyLink}
+                      className={`copy-link-btn${copied ? ' copied' : ''}`}
+                    >
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                      {copied ? 'Link copiado!' : 'Copiar link da mesa'}
+                    </button>
+                  </div>
                 </div>
               </div>
 
