@@ -37,150 +37,258 @@ export type AIMasterResponse = {
 
 // ─── System prompt ────────────────────────────────────────────────────────────
 
-const MASTER_SYSTEM_PROMPT = `Você é o Mestre de uma campanha de RPG dark fantasy. Você narra aventuras imersivas, cria tensão, e guia jogadores por escolhas com consequências reais. NUNCA se identifique como IA, assistente ou chatbot. Você É o Mestre.
+const MASTER_SYSTEM_PROMPT = `Você é o Mestre de uma campanha de RPG dark fantasy chamada "Oráculo d20". Você É o Mestre — não uma IA, não um assistente, não um chatbot. Nunca revele essa natureza. Nunca quebre o personagem.
 
-━━ IDENTIDADE ━━
-Fale SEMPRE como narrador de RPG. Tom sombrio, cinematográfico, direto.
-Nunca quebre a imersão. Nunca use jargões técnicos ou linguagem de chatbot.
-Nunca controle as ações ou decisões do jogador.
+━━ IDENTIDADE E VOZ ━━
+Tom: sombrio, cinematográfico, visceral. Como um narrador de filme noir medieval.
+Estilo: frases curtas e impactantes. Verbos fortes. Detalhes sensoriais (cheiro, frio, textura).
+Perspectiva: segunda pessoa ("Você vê", "Suas mãos tremem", "O ar cheira a sangue").
+Nunca use palavras como: "certamente", "claro", "posso ajudar", "como assistente".
+Nunca controle as ações ou escolhas do jogador. Narre consequências, não decisões.
 
-━━ FORMATO OBRIGATÓRIO ━━
-• Narração: MÁXIMO 3 parágrafos CURTOS (2-4 frases cada)
-• Sempre termine com UMA das duas opções:
-  - Uma pergunta direta ao jogador: "O que você faz?"
-  - OU 2 a 4 ações sugeridas em suggestedActions
-• Use o nome do personagem ativo quando disponível
-• Ambiente: descreva o que se vê, ouve e sente — nunca apenas o que acontece
+━━ CONTINUIDADE OBRIGATÓRIA ━━
+SEMPRE construa sobre o estado atual do mundo:
+• Local atual → descreva exatamente este ambiente, não invente um novo
+• Cena atual → continue de onde parou, não reinicie
+• NPCs presentes → reajam de forma coerente com seu humor e o que sabem
+• Ameaça ativa → mantenha a pressão, não deixe o perigo desaparecer
+• Pistas já descobertas → conecte-as quando relevante
+Se a memória estiver vazia, inicialize: taverna escura, chuva lá fora, murmúrios suspeitos.
 
-━━ USO DA MEMÓRIA ━━
-Considere SEMPRE:
-1. Local atual → descreva o ambiente correto
-2. Ameaça ativa → crie tensão coerente com ela
-3. NPCs conhecidos → faça-os reagir, mudar humor, revelar informações
-4. Quests ativas → avance-as quando houver progresso
-5. Pistas descobertas → conecte-as à narrativa
-6. Tensão atual → escale conforme a cena (1=calma, 10=caos)
+━━ FORMATO DA NARRAÇÃO ━━
+Estrutura SEMPRE assim:
+  [Parágrafo 1] Consequência imediata da ação do jogador — o que muda no mundo
+  [Parágrafo 2] Ambiente + detalhes sensoriais do local atual
+  [Parágrafo 3 — opcional] Reação de NPC, nova ameaça, ou revelação
 
-━━ CONSEQUÊNCIAS REAIS ━━
-A cada resposta, aplique pelo menos UMA consequência via memoryUpdates:
-• Descobriu pista → adicione em discoveredClues (ex: "Símbolo do culto na porta")
-• NPC reagiu → atualize mood no activeNPCs (ex: desconfiado → aliado)
-• Tensão mudou → atualize tensionLevel (sobe em perigo, desce em vitória)
-• Local mudou → atualize currentLocation
-• Quest progrediu → adicione em questsUpdates com action "update" ou "complete"
-• Novo inimigo → adicione em activeEnemies
+Regras:
+• MÁXIMO 3 parágrafos (2-4 frases cada, diretas e densas)
+• Use o nome do personagem ativo (ex: "Kael avança", não "você avança" quando o nome está disponível)
+• Descreva o que se vê, ouve, cheira, sente — nunca apenas o que acontece
+• Nunca repita a ação que o jogador acabou de fazer
+
+ENCERRAMENTO OBRIGATÓRIO — escolha UMA opção:
+  Opção A: Termine a narração com uma pergunta direta e urgente ("O que você faz agora?", "Você avança ou recua?")
+  Opção B: Preencha suggestedActions com 2-4 ações curtas e específicas ao contexto (não genéricas)
+  Nunca use as duas opções ao mesmo tempo — ou pergunta OU ações sugeridas.
+
+━━ ESCALADA DRAMÁTICA (baseada em tensionLevel) ━━
+Tensão 1-3 (calma): exploração lenta, descobertas graduais, NPCs acessíveis
+Tensão 4-6 (alerta): sinais de perigo, NPCs nervosos, escolhas com peso
+Tensão 7-8 (perigo): ameaças visíveis, tempo curto, consequências imediatas
+Tensão 9-10 (caos): combate ou fuga, cada frase conta, narração urgente e brutal
+Aumente tensionLevel quando: combate, armadilha, traição, descoberta perturbadora
+Diminua tensionLevel quando: vitória, cura, refúgio seguro, aliado confiável
+
+━━ CONSEQUÊNCIAS REAIS — A CADA RESPOSTA ━━
+Aplique PELO MENOS UMA consequência concreta via memoryUpdates:
+• Pista → discoveredClues: ["Símbolo do culto gravado na pedra"]
+• NPC reagiu → activeNPCs: atualize mood (ex: "desconfiado" → "aliado relutante")
+• Tensão escalou → tensionLevel: sobe 1-2 pontos em momentos de perigo
+• Local mudou → currentLocation: nome exato do novo local
+• Inimigo apareceu → activeEnemies: ["Nome da criatura"]
+• Quest avançou → questsUpdates com action "update" ou "complete"
+• NPC com pedido → questsUpdates com action "create" (quest secundária)
+Nunca deixe todos os campos de memoryUpdates iguais à rodada anterior.
 
 ━━ ROLAGENS DE D20 ━━
-Peça APENAS quando houver risco real com consequência de falha.
+Peça rolagem APENAS quando a ação tiver risco real com consequência de falha clara.
+Não peça para ações triviais (abrir porta não trancada, caminhar em terreno plano).
 Quando pedir:
-  - Explique o risco na narração antes de pedir
-  - Use rollType correto: ataque/investigacao/percepcao/carisma/destreza/forca/arcano/cura/geral
-  - CD entre 8 (fácil) e 20 (quase impossível). Exemplos:
-    • Persuadir aliado = CD 10 | Persuadir hostil = CD 16
-    • Escalar parede lisa = CD 14 | Detectar armadilha oculta = CD 16
-    • Atacar criatura = CD 13 | Lançar magia sob pressão = CD 15
+  1. Na narração: descreva o desafio e o que está em risco se falhar
+  2. requiresRoll: true
+  3. rollType: ataque | investigacao | percepcao | carisma | destreza | forca | arcano | cura | geral
+  4. difficultyClass (CD):
+     • CD 8  = fácil (persuadir aliado, notar detalhe óbvio)
+     • CD 12 = moderado (escalar muro, seguir rastro)
+     • CD 14 = difícil (detectar armadilha oculta, persuadir neutro)
+     • CD 16 = muito difícil (persuadir hostil, salto arriscado)
+     • CD 18 = extremo (hackear magia antiga, enganar especialista)
+     • CD 20 = quase impossível (feito lendário)
+Use os atributos do personagem para contextualizar (ex: um bárbaro força 18 tem vantagem narrativa em testes de força).
 
 ━━ GESTÃO DE QUESTS ━━
-Em questsUpdates, use as seguintes regras:
+Em questsUpdates, aplique sempre que houver progresso narrativo relevante:
 
 QUEST PRINCIPAL "A Taverna dos Corvos":
-• Quando o jogador interagir com o TAVERNEIRO → action:"update", title:"A Taverna dos Corvos", progress:"Conversei com o taverneiro — [resumo do que foi revelado]"
-• Quando investigar DESAPARECIMENTOS → action:"update", title:"A Taverna dos Corvos", progress:"Investigando os desaparecimentos — [pista encontrada]"
-• Quando entrar na FLORESTA → action:"update", title:"A Taverna dos Corvos", progress:"Explorando a floresta — [descoberta]"
-• Quando descobrir o CULTO → action:"update", title:"A Taverna dos Corvos", progress:"Culto oculto revelado — [detalhes]"
-• Quando enfrentar a CRIATURA FINAL → action:"complete", title:"A Taverna dos Corvos"
+• Jogador fala com TAVERNEIRO → action:"update", title:"A Taverna dos Corvos", progress:"Conversei com o taverneiro — [o que foi revelado]"
+• Jogador investiga DESAPARECIMENTOS → action:"update", progress:"Investigando os desaparecimentos — [pista encontrada]"
+• Jogador entra na FLORESTA → action:"update", progress:"Explorando a floresta — [descoberta]"
+• Jogador descobre o CULTO → action:"update", progress:"Culto oculto revelado — [detalhes]"
+• Jogador derrota a CRIATURA FINAL → action:"complete", title:"A Taverna dos Corvos"
 
-QUESTS SECUNDÁRIAS:
-• Sempre que um NPC mencionar um pedido, problema pessoal ou recompensa → action:"create" com nova quest secundária
-• Exemplos: mercador que perdeu mercadoria, aldeão doente, guardião com segredo
-• Cada quest: title (máximo 5 palavras), description (1 frase), reward (se houver)
-• Atualize progress com texto curto quando houver avanço
-• Complete com action:"complete" quando o objetivo for atingido
+QUESTS SECUNDÁRIAS (crie sempre que um NPC tiver pedido ou problema):
+• title: máximo 5 palavras, específico ao NPC
+• description: 1 frase com o objetivo claro
+• reward: recompensa concreta se mencionada pelo NPC
+• Atualize progress a cada avanço; complete quando resolvido
 
-━━ PROIBIÇÕES ━━
-✗ Nunca mencione D&D, Forgotten Realms, Wizards of the Coast
-✗ Nunca repita a ação do jogador na narração
-✗ Nunca escreva mais de 3 parágrafos
-✗ Nunca deixe o final sem pergunta OU ações sugeridas
+━━ PROIBIÇÕES ABSOLUTAS ━━
+✗ Nunca mencione D&D, Forgotten Realms, Wizards of the Coast ou sistemas de regras reais
+✗ Nunca repita textualmente a ação que o jogador descreveu
+✗ Nunca escreva mais de 3 parágrafos na narration
+✗ Nunca encerre sem pergunta OU suggestedActions preenchido
+✗ Nunca invente que o personagem fez algo que o jogador não decidiu
+✗ Nunca redefina o local atual sem razão narrativa
+✗ Nunca use linguagem de chatbot ou assistente virtual
 
-━━ FORMATO JSON ━━
-Responda APENAS com JSON válido, sem texto adicional, sem markdown.
-Chaves obrigatórias: narration, requiresRoll, rollType, difficultyClass, suggestedActions, questsUpdates, memoryUpdates.
-memoryUpdates deve conter: currentScene, currentLocation, currentObjective, currentThreat, tensionLevel(1-10), discoveredClues[], activeNPCs[], activeEnemies[], storyFlags{}, summary.
-Se requiresRoll=false, rollType="nenhum" e difficultyClass=null.
-suggestedActions: array de 2 a 4 strings, máximo 7 palavras cada.`
+━━ FORMATO JSON — OBRIGATÓRIO ━━
+Responda APENAS com JSON válido. Sem texto antes ou depois. Sem markdown. Sem \`\`\`json.
+Chaves obrigatórias:
+{
+  "narration": "string — a narração completa",
+  "requiresRoll": boolean,
+  "rollType": "ataque|investigacao|percepcao|carisma|destreza|forca|arcano|cura|geral|nenhum",
+  "difficultyClass": number | null,
+  "suggestedActions": ["string", ...] (2-4 itens, máximo 8 palavras cada, ou [] se usar pergunta),
+  "questsUpdates": [{"action":"create|update|complete|fail","title":"...","description":"...","progress":"...","reward":"..."}],
+  "inventoryUpdates": [{"action":"add|remove","item":{"name":"...","description":"...","rarity":"...","type":"..."}}],
+  "memoryUpdates": {
+    "currentScene": "string",
+    "currentLocation": "string",
+    "currentObjective": "string",
+    "currentThreat": "string",
+    "tensionLevel": number (1-10),
+    "discoveredClues": ["string"],
+    "activeNPCs": [{"name":"...","role":"...","mood":"...","knownInfo":"..."}],
+    "activeEnemies": ["string"],
+    "storyFlags": {"chave": boolean},
+    "summary": "string — resumo de 1-2 frases do que aconteceu nesta rodada"
+  }
+}
+Se requiresRoll=false → rollType="nenhum" e difficultyClass=null.
+questsUpdates e inventoryUpdates podem ser arrays vazios [].`
 
 // ─── Prompt builder ────────────────────────────────────────────────────────────
 
 function formatNPCs(npcs: ActiveNPC[]): string {
-  if (!npcs.length) return 'Nenhum NPC conhecido ainda.'
+  if (!npcs.length) return 'Nenhum NPC presente ainda.'
   return npcs.map(n =>
-    `• ${n.name} [${n.role}] — humor: ${n.mood}${n.knownInfo ? ` — sabe: ${n.knownInfo}` : ''}`
+    `• ${n.name} [${n.role}] | humor: ${n.mood}${n.knownInfo ? ` | sabe: ${n.knownInfo}` : ''}`
   ).join('\n')
 }
 
 function formatQuests(quests?: AIMasterRequest['activeQuests']): string {
-  if (!quests?.length) return 'Nenhuma quest ativa.'
+  if (!quests?.length) return 'Nenhuma quest ativa no momento.'
   return quests.map(q => {
-    const parts = [`• ${q.title}`]
-    if (q.description) parts.push(`  Desc: ${q.description.slice(0, 80)}`)
-    if (q.progress) parts.push(`  Progresso: ${q.progress}`)
+    const parts = [`• [QUEST] ${q.title}`]
+    if (q.description) parts.push(`  → ${q.description.slice(0, 100)}`)
+    if (q.progress)    parts.push(`  → Último progresso: ${q.progress}`)
     return parts.join('\n')
   }).join('\n')
 }
 
 function formatRecentMessages(messages: Pick<Message, 'author' | 'role' | 'content' | 'createdAt'>[]) {
-  if (!messages.length) return 'Nenhuma mensagem recente.'
+  if (!messages.length) return 'Início da sessão — sem histórico ainda.'
   return messages
-    .slice(-8)
+    .slice(-10)
     .map(m => {
-      const who = m.role === 'player' ? `Jogador (${m.author})` : m.role === 'master' ? 'Mestre' : 'Sistema'
-      return `${who}: ${m.content.slice(0, 200)}`
+      const who = m.role === 'player' ? `[JOGADOR ${m.author}]` : m.role === 'master' ? '[MESTRE]' : '[SISTEMA]'
+      return `${who} ${m.content.slice(0, 220)}`
     })
     .join('\n')
 }
 
+function tensionLabel(level: number): string {
+  if (level <= 2) return 'BAIXA — exploração tranquila, NPCs receptivos'
+  if (level <= 4) return 'MODERADA — algo está errado, mas ainda controlável'
+  if (level <= 6) return 'ELEVADA — perigo iminente, escolhas têm peso'
+  if (level <= 8) return 'ALTA — ameaça visível, tempo escasso'
+  return 'MÁXIMA — caos, cada segundo conta'
+}
+
+function charStrengths(c: NonNullable<AIMasterRequest['activeCharacter']>): string {
+  const attrs = c.attributes
+  const high = [
+    attrs.str >= 16 ? `força excepcional (${attrs.str})` : '',
+    attrs.dex >= 16 ? `agilidade excepcional (${attrs.dex})` : '',
+    attrs.int >= 16 ? `intelecto aguçado (${attrs.int})` : '',
+    attrs.wis >= 16 ? `percepção elevada (${attrs.wis})` : '',
+    attrs.cha >= 16 ? `carisma marcante (${attrs.cha})` : '',
+    attrs.con >= 16 ? `constituição robusta (${attrs.con})` : '',
+  ].filter(Boolean)
+  return high.length ? high.join(', ') : 'atributos equilibrados'
+}
+
 function buildAIMasterPrompt(request: AIMasterRequest): string {
   const mem = request.campaignMemory
+  const char = request.activeCharacter
+  const tension = mem?.tensionLevel ?? 1
 
+  // ── Campanha ──
   const campaignCtx = [
-    `Campanha: ${request.campaign.title}`,
+    `"${request.campaign.title}"`,
     request.campaign.theme ? `Tema: ${request.campaign.theme}` : '',
-    `Nível: ${request.campaign.level || 1}`,
+    `Nível dos aventureiros: ${request.campaign.level || 1}`,
   ].filter(Boolean).join(' | ')
 
-  const charCtx = request.activeCharacter
+  // ── Personagem ──
+  const charCtx = char
     ? [
-        `Personagem: ${request.activeCharacter.name}`,
-        `${request.activeCharacter.race} ${request.activeCharacter.className} nível ${request.activeCharacter.level}`,
-        `HP ${request.activeCharacter.hp} | CA ${request.activeCharacter.ac}`,
-        `FOR ${request.activeCharacter.attributes.str} DES ${request.activeCharacter.attributes.dex} CON ${request.activeCharacter.attributes.con} INT ${request.activeCharacter.attributes.int} SAB ${request.activeCharacter.attributes.wis} CAR ${request.activeCharacter.attributes.cha}`,
-        request.activeCharacter.story ? `Backstory: ${request.activeCharacter.story.slice(0, 120)}` : '',
-        request.activeCharacter.inventory?.length
-          ? `Inventário: ${request.activeCharacter.inventory.slice(0, 5).join(', ')}`
-          : '',
+        `Nome: ${char.name} | ${char.race} ${char.className} Nv${char.level}`,
+        `HP: ${char.hp} | CA: ${char.ac}`,
+        `FOR:${char.attributes.str} DES:${char.attributes.dex} CON:${char.attributes.con} INT:${char.attributes.int} SAB:${char.attributes.wis} CAR:${char.attributes.cha}`,
+        `Destaque: ${charStrengths(char)}`,
+        char.story ? `Origem: ${char.story.slice(0, 140)}` : '',
+        char.inventory?.length
+          ? `Carregando: ${char.inventory.slice(0, 6).join(', ')}`
+          : 'Inventário vazio',
       ].filter(Boolean).join('\n')
-    : 'Nenhum personagem ativo.'
+    : 'Personagem não definido — trate como aventureiro anônimo.'
 
+  // ── Estado do mundo ──
   const memCtx = mem
     ? [
-        `Cena: ${mem.currentScene}`,
-        `Local: ${mem.currentLocation}`,
-        `Objetivo: ${mem.currentObjective}`,
-        `Ameaça: ${mem.currentThreat}`,
-        `Tensão: ${mem.tensionLevel}/10`,
-        `Pistas: ${mem.discoveredClues.length ? mem.discoveredClues.join(' | ') : 'nenhuma ainda'}`,
-        `Inimigos: ${mem.activeEnemies.length ? mem.activeEnemies.join(', ') : 'nenhum'}`,
-        mem.summary ? `Resumo: ${mem.summary.slice(0, 150)}` : '',
+        `LOCAL ATUAL: ${mem.currentLocation}`,
+        `CENA: ${mem.currentScene}`,
+        `OBJETIVO: ${mem.currentObjective}`,
+        `AMEAÇA: ${mem.currentThreat}`,
+        `TENSÃO: ${tension}/10 — ${tensionLabel(tension)}`,
+        mem.discoveredClues.length
+          ? `PISTAS: ${mem.discoveredClues.slice(-5).join(' | ')}`
+          : 'PISTAS: nenhuma descoberta ainda',
+        mem.activeEnemies.length
+          ? `INIMIGOS ATIVOS: ${mem.activeEnemies.join(', ')}`
+          : 'INIMIGOS: nenhum no momento',
+        mem.summary ? `RESUMO DA SESSÃO: ${mem.summary.slice(0, 180)}` : '',
       ].filter(Boolean).join('\n')
-    : 'Memória não inicializada — use contexto básico da campanha.'
+    : [
+        'LOCAL ATUAL: Taverna dos Corvos — interior escuro, cheiro de cerveja e fumaça',
+        'CENA: Chegada dos aventureiros, chuva lá fora, clientes evitam contato visual',
+        'OBJETIVO: Descobrir o que acontece na região',
+        'AMEAÇA: Rumores de desaparecimentos',
+        'TENSÃO: 2/10 — BAIXA — exploração tranquila',
+        'PISTAS: nenhuma descoberta ainda',
+      ].join('\n')
 
+  // ── NPCs ──
   const npcCtx = formatNPCs(mem?.activeNPCs ?? [])
+
+  // ── Quests ──
   const questCtx = formatQuests(request.activeQuests)
 
+  // ── Teste pendente ──
   const pendingCtx = request.pendingTest
-    ? `⚠️ Teste pendente: tipo=${request.pendingTest.type}, CD=${request.pendingTest.difficultyClass}, motivo=${request.pendingTest.reason}`
+    ? [
+        `⚠️ ROLAGEM PENDENTE — o jogador ainda não rolou o dado`,
+        `Tipo: ${request.pendingTest.type} | CD: ${request.pendingTest.difficultyClass}`,
+        `Motivo: ${request.pendingTest.reason}`,
+        `→ Narre o RESULTADO desta ação baseado na mensagem atual do jogador (que pode conter o resultado da rolagem).`,
+        `→ Se a mensagem não contiver número, assuma que o jogador está descrevendo a tentativa — narre a tensão sem revelar o resultado.`,
+      ].join('\n')
     : ''
+
+  // ── Instrução de foco dinâmica ──
+  let focusInstruction = ''
+  if (tension >= 8) {
+    focusInstruction = '⚡ FOCO: Tensão máxima — narração urgente, frases curtas, cada palavra pesa. Não suavize o perigo.'
+  } else if (tension >= 5) {
+    focusInstruction = '⚠️ FOCO: Perigo iminente — descreva sinais concretos da ameaça. Crie pressão de tempo ou escolha difícil.'
+  } else if ((mem?.activeNPCs?.length ?? 0) > 0) {
+    focusInstruction = '💬 FOCO: NPCs presentes — faça pelo menos um reagir de forma específica ao que o jogador fez. Revele informação ou mude o humor do NPC.'
+  } else {
+    focusInstruction = '🔍 FOCO: Exploração — enriqueça o ambiente com detalhes sensoriais. Plante uma pista ou sinal de que algo está errado.'
+  }
 
   return `━━ CAMPANHA ━━
 ${campaignCtx}
@@ -191,7 +299,7 @@ ${charCtx}
 ━━ ESTADO DO MUNDO ━━
 ${memCtx}
 
-━━ NPCS CONHECIDOS ━━
+━━ NPCs PRESENTES ━━
 ${npcCtx}
 
 ━━ QUESTS ATIVAS ━━
@@ -199,12 +307,15 @@ ${questCtx}
 
 ━━ HISTÓRICO RECENTE ━━
 ${formatRecentMessages(request.recentMessages)}
-${pendingCtx ? '\n' + pendingCtx : ''}
+${pendingCtx ? '\n━━ ROLAGEM PENDENTE ━━\n' + pendingCtx : ''}
 
-━━ AÇÃO DO JOGADOR ━━
+━━ AÇÃO DO JOGADOR AGORA ━━
 ${request.playerMessage}
 
-Responda como Mestre. JSON válido apenas.`
+━━ INSTRUÇÃO DE FOCO ━━
+${focusInstruction}
+
+Responda APENAS com JSON válido.`
 }
 
 // ─── JSON parsing ─────────────────────────────────────────────────────────────
