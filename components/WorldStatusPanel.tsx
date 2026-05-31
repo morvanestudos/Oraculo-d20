@@ -30,7 +30,7 @@ const GENERIC_DEFAULTS = {
 }
 
 function deriveRegion(location: string): string {
-  const l = location.toLowerCase()
+  const l = (location ?? '').toLowerCase()
   if (l.includes('valdrak') || l.includes('taverna') || l.includes('corvos')) return 'Vila de Valdrak'
   if (l.includes('floresta') || l.includes('norte')) return 'Floresta ao Norte'
   return 'Terras Desconhecidas'
@@ -38,7 +38,7 @@ function deriveRegion(location: string): string {
 
 function deriveClimate(location: string, scene: string, isTaverna: boolean): string {
   if (isTaverna) return 'Chuva fria da noite'
-  const s = (location + ' ' + scene).toLowerCase()
+  const s = ((location ?? '') + ' ' + (scene ?? '')).toLowerCase()
   if (s.includes('floresta') || s.includes('norte')) return 'Neblina densa'
   if (s.includes('caverna') || s.includes('dungeon')) return 'Úmido e escuro'
   if (s.includes('taverna') || s.includes('interior')) return 'Abafado, cheiro de fumaça'

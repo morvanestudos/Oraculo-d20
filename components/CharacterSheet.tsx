@@ -31,7 +31,7 @@ const TYPE_ICON: Record<ItemType, string> = {
 
 // ── Auto-detection ────────────────────────────────────────────────
 function detectType(name: string): ItemType {
-  const n = name.toLowerCase()
+  const n = (name ?? '').toLowerCase()
   if (/poção|elixir|frasco|bebida/.test(n)) return 'poção'
   if (/espada|machado|adaga|arco|lança|faca|bastão|cajado|mace/.test(n)) return 'arma'
   if (/chave/.test(n)) return 'chave'
@@ -41,7 +41,7 @@ function detectType(name: string): ItemType {
 }
 
 function detectRarity(name: string): ItemRarity {
-  const n = name.toLowerCase()
+  const n = (name ?? '').toLowerCase()
   if (/amaldiçoado|maldito|corrompido|sombrio/.test(n)) return 'amaldiçoado'
   if (/raro|mágico|encantado|lendário|único|sagrado/.test(n)) return 'raro'
   if (/incomum|especial|fino|reforçado|superior/.test(n)) return 'incomum'

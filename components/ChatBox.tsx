@@ -492,7 +492,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
             } else if (upd.action === 'remove') {
               updated = updated.filter(i => {
                 const name = (() => { try { return JSON.parse(i)?.name ?? i } catch { return i } })()
-                return name.toLowerCase() !== upd.item.name.toLowerCase()
+                return (name ?? '').toLowerCase() !== (upd.item.name ?? '').toLowerCase()
               })
             }
           }

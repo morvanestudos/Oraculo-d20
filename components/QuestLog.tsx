@@ -10,7 +10,7 @@ type Props = {
 
 // Detect quest type icon from title + description
 function questIcon(title: string, desc?: string | null): string {
-  const t = (title + ' ' + (desc ?? '')).toLowerCase()
+  const t = ((title ?? '') + ' ' + (desc ?? '')).toLowerCase()
   if (/cult|ritual|perigo|inimigo|combate|luta|matar|eliminar|ameaça/.test(t)) return '🗡️'
   if (/investigar|descobrir|pista|mistério|segredo|origem|cantos/.test(t)) return '🔍'
   if (/conversar|falar|taverneiro|informação|persuad/.test(t)) return '💬'

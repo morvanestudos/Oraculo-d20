@@ -284,7 +284,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     if (isStartingCampaign) return
     setIsStartingCampaign(true)
     try {
-      const isTaverna = campaign?.title.toLowerCase().includes('taverna dos corvos')
+      const isTaverna = (campaign?.title ?? '').toLowerCase().includes('taverna dos corvos')
       const initialMessage = isTaverna
         ? TAVERNA_INITIAL_MESSAGE
         : campaign?.description
@@ -643,8 +643,8 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                         transition: 'all 0.2s',
                         letterSpacing: '0.05em',
                       }}
-                    
-                    >
+                  
+                   >
                       Sair da mesa
                     </button>
                   </div>

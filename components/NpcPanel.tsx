@@ -25,22 +25,24 @@ const MOOD_STYLE: Record<string, { label: string; color: string; bg: string }> =
 }
 
 function moodStyle(mood: string) {
-  const key = mood.toLowerCase().trim()
+  const key = (mood ?? '').toLowerCase().trim()
   return MOOD_STYLE[key] ?? {
-    label: mood,
+    label: mood ?? '',
     color: 'rgba(212,177,106,0.7)',
     bg: 'rgba(212,177,106,0.08)',
   }
 }
 
 // Initials avatar — generates from NPC name
-function NpcAvatar({ name }: { name: string }) {
-  const initials = name
-    .split(/[\s,]+/)
+function NpcAvatar({ name }: { name?: string | null }) {
+  const safeName = String(name ?? "NPC")
+
+  const initials = safeName
+    .split(/[,\s]+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map(w => w[0]?.toUpperCase() ?? '')
-    .join('')
+    .map(w => w[0]?.toUpperCase() ?? "")
+    .join("")
 
   return (
     <div style={{
@@ -82,7 +84,7 @@ function NpcCard({ npc }: { npc: ActiveNPC }) {
               color: '#d4b16a', letterSpacing: '0.03em',
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
-              {npc.name}
+              {npc.name ?? "NPC desconhecido"}
             </div>
             <div style={{
               flexShrink: 0,

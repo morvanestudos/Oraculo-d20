@@ -43,7 +43,7 @@ export default function CampaignIntroPanel({ campaign, onStart, onDismiss, isSta
       .catch(() => {})
   }, [campaign.id])
 
-  const isTaverna = campaign.title.toLowerCase().includes('taverna dos corvos')
+  const isTaverna = (campaign.title ?? '').toLowerCase().includes('taverna dos corvos')
   const introText = isTaverna ? TAVERNA_INTRO : campaign.description
 
   const objectives =
