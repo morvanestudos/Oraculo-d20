@@ -9,6 +9,7 @@ import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrate
 import type { Message, Campaign, Character, PendingTest, CampaignMemory, AIMasterResponse } from '../lib/types'
 import { processQuestUpdates } from '../lib/api/quests'
 import CombatPanel from './CombatPanel'
+import CampaignIntroPanel from './CampaignIntroPanel'
 
 type ChatBoxProps = {
   campaignId: string
@@ -24,6 +25,8 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
   const [campaignMemory, setCampaignMemory] = useState<CampaignMemory | null>(null)
   const [suggestedActions, setSuggestedActions] = useState<string[]>([])
   const [suggestedActionsMessageId, setSuggestedActionsMessageId] = useState<string | null>(null)
+  const [showIntro, setShowIntro] = useState(false)
+  const [isStarting, setIsStarting] = useState(false)
 
   useEffect(() => {
     let pusher: ReturnType<typeof createPusherClient> | null = null
@@ -49,32 +52,12 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
 
       if (remote && remote.length > 0) {
         setMessages(remote)
+        setShowIntro(false)
       } else if (stored.length > 0) {
         setMessages(stored)
+        setShowIntro(false)
       } else {
-        const tempId = `temp-${Date.now()}`
-        const initialMessage: Message = {
-          id: tempId,
-          campaignId,
-          author: 'Mestre IA',
-          role: 'master',
-          content: campaign.description
-  ? `${campaign.description}\n\nO Mestre aguarda. Apresente seu personagem e declare sua primeira ação.`
-  : 'As tochas tremulam enquanto a aventura começa. Apresentem seus personagens e declarem suas primeiras ações, viajantes.',
-          createdAt: new Date().toISOString()
-        }
-        setMessages([initialMessage])
-        const createdInitial = await createMessage(campaignId, {
-          author: initialMessage.author,
-          role: initialMessage.role,
-          content: initialMessage.content
-        })
-        if (createdInitial) {
-          saveMessage(createdInitial)
-          setMessages([createdInitial])
-        } else {
-          saveMessage(initialMessage)
-        }
+        setShowIntro(true)
       }
     }
 
@@ -83,19 +66,9 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
       const fallback = getMessages(campaignId)
       if (fallback.length > 0) {
         setMessages(fallback)
+        setShowIntro(false)
       } else {
-        const initialMessage: Message = {
-          id: `msg-${Date.now()}`,
-          campaignId,
-          author: 'Mestre IA',
-          role: 'master',
-          content: campaign.description
-  ? `${campaign.description}\n\nO Mestre aguarda. Apresente seu personagem e declare sua primeira ação.`
-  : 'As tochas tremulam enquanto a aventura começa. Apresentem seus personagens e declarem suas primeiras ações, viajantes.',
-          createdAt: new Date().toISOString()
-        }
-        setMessages([initialMessage])
-        saveMessage(initialMessage)
+        setShowIntro(true)
       }
     })
 
@@ -120,6 +93,35 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
       pusher?.disconnect()
     }
   }, [campaignId])
+
+  async function handleStartAdventure(initialMessage: string) {
+    setIsStarting(true)
+    const tempMsg: Message = {
+      id: `temp-${Date.now()}`,
+      campaignId,
+      author: 'Mestre IA',
+      role: 'master',
+      content: initialMessage,
+      createdAt: new Date().toISOString()
+    }
+    setMessages([tempMsg])
+
+    const created = await createMessage(campaignId, {
+      author: tempMsg.author,
+      role: tempMsg.role,
+      content: tempMsg.content
+    })
+
+    if (created) {
+      saveMessage(created)
+      setMessages([created])
+    } else {
+      saveMessage(tempMsg)
+    }
+
+    setShowIntro(false)
+    setIsStarting(false)
+  }
 
   async function sendMessage(content: string) {
     const tempId = `temp-${Date.now()}`
@@ -414,6 +416,16 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
     setSuggestedActions([])
     setSuggestedActionsMessageId(null)
     await sendMessage(action)
+  }
+
+  if (showIntro) {
+    return (
+      <CampaignIntroPanel
+        campaign={campaign}
+        onStart={handleStartAdventure}
+        isStarting={isStarting}
+      />
+    )
   }
 
   return (
