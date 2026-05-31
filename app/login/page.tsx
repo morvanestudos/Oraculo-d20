@@ -6,271 +6,7 @@ import Link from 'next/link'
 import { useAuth } from '../../lib/useAuth'
 import { LOADING_PHRASES } from '../../lib/loadingPhrases'
 
-// ─── Arte SVG do mundo de Valdrak ───────────────────────────────────────────
 
-function ValdrakArt() {
-  return (
-    <svg
-      viewBox="0 0 700 600"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ width: '100%', height: '100%', display: 'block' }}
-      aria-hidden="true"
-    >
-      <defs>
-        {/* Sky gradient */}
-        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#03020a" />
-          <stop offset="35%"  stopColor="#0a0618" />
-          <stop offset="70%"  stopColor="#130a22" />
-          <stop offset="100%" stopColor="#1c0d2e" />
-        </linearGradient>
-        {/* Horizon fog gradient */}
-        <linearGradient id="fogHorizon" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#2a1540" stopOpacity="0" />
-          <stop offset="60%"  stopColor="#1a0d2e" stopOpacity="0.5" />
-          <stop offset="100%" stopColor="#0d0618" stopOpacity="0.9" />
-        </linearGradient>
-        {/* Tavern warm glow */}
-        <radialGradient id="tavernGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#f59e0b" stopOpacity="0.55" />
-          <stop offset="40%"  stopColor="#d97706" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#92400e" stopOpacity="0" />
-        </radialGradient>
-        {/* Moon glow */}
-        <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%"   stopColor="#e8d5f5" stopOpacity="0.9" />
-          <stop offset="30%"  stopColor="#c4a8e8" stopOpacity="0.4" />
-          <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
-        </radialGradient>
-        {/* Ground gradient */}
-        <linearGradient id="ground" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%"   stopColor="#1a0d2a" />
-          <stop offset="100%" stopColor="#0d0618" />
-        </linearGradient>
-        {/* Mist layer */}
-        <linearGradient id="mist1" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#a78bfa" stopOpacity="0" />
-          <stop offset="20%"  stopColor="#a78bfa" stopOpacity="0.07" />
-          <stop offset="50%"  stopColor="#c4b5fd" stopOpacity="0.12" />
-          <stop offset="80%"  stopColor="#a78bfa" stopOpacity="0.07" />
-          <stop offset="100%" stopColor="#a78bfa" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="mist2" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%"   stopColor="#ddd6fe" stopOpacity="0.05" />
-          <stop offset="30%"  stopColor="#ddd6fe" stopOpacity="0.1" />
-          <stop offset="70%"  stopColor="#ddd6fe" stopOpacity="0.06" />
-          <stop offset="100%" stopColor="#ddd6fe" stopOpacity="0" />
-        </linearGradient>
-        <filter id="blur1">
-          <feGaussianBlur stdDeviation="4" />
-        </filter>
-        <filter id="blur2">
-          <feGaussianBlur stdDeviation="8" />
-        </filter>
-        <filter id="blur3">
-          <feGaussianBlur stdDeviation="16" />
-        </filter>
-      </defs>
-
-      {/* Sky */}
-      <rect width="700" height="600" fill="url(#sky)" />
-
-      {/* Stars — layer 1 (tiny) */}
-      {[
-        [60,40],[120,25],[185,55],[240,18],[310,38],[380,12],[440,48],[510,22],[565,42],[620,15],
-        [680,35],[90,80],[155,70],[220,88],[280,60],[350,75],[415,65],[480,85],[540,55],[600,78],
-        [650,68],[35,110],[100,130],[170,105],[230,125],[295,98],[360,120],[425,108],[490,132],[555,102],
-        [615,128],[670,115],[145,160],[210,148],[270,168],[335,155],[395,142],[460,165],[525,150],
-      ].map(([x, y], i) => (
-        <circle
-          key={`s1-${i}`}
-          cx={x} cy={y} r={i % 3 === 0 ? 0.8 : 0.5}
-          fill={i % 5 === 0 ? '#ddd6fe' : '#e8e0ff'}
-          opacity={0.4 + (i % 4) * 0.15}
-        />
-      ))}
-
-      {/* Stars — layer 2 (slightly bigger, fewer) */}
-      {[
-        [75,55],[200,30],[330,20],[490,40],[600,28],[155,95],[285,82],[430,90],[570,72],[660,50],
-        [50,135],[190,142],[325,130],[470,138],[610,122],[40,175],[175,180],[310,172],[450,182],
-      ].map(([x, y], i) => (
-        <circle
-          key={`s2-${i}`}
-          cx={x} cy={y} r={i % 4 === 0 ? 1.5 : 1}
-          fill="#e8d5f5"
-          opacity={0.3 + (i % 3) * 0.2}
-        />
-      ))}
-
-      {/* Moon halo */}
-      <circle cx="540" cy="80" r="55" fill="url(#moonGlow)" filter="url(#blur2)" />
-      {/* Moon */}
-      <circle cx="540" cy="80" r="28" fill="#f0e8ff" opacity="0.92" />
-      <circle cx="540" cy="80" r="28" fill="none" stroke="#ddd6fe" strokeWidth="0.5" opacity="0.6" />
-      {/* Moon craters */}
-      <circle cx="532" cy="72" r="4" fill="#d4c5ee" opacity="0.4" />
-      <circle cx="547" cy="83" r="3" fill="#d4c5ee" opacity="0.3" />
-      <circle cx="536" cy="88" r="2" fill="#d4c5ee" opacity="0.25" />
-
-      {/* Distant mountains (far background) */}
-      <path
-        d="M0,320 L60,200 L120,260 L180,170 L250,240 L310,155 L380,225 L440,160 L510,230 L570,175 L640,240 L700,200 L700,380 L0,380 Z"
-        fill="#130820"
-        opacity="0.9"
-      />
-      <path
-        d="M0,340 L40,240 L90,290 L150,210 L220,270 L280,190 L340,250 L400,185 L460,255 L520,195 L580,260 L640,210 L700,260 L700,380 L0,380 Z"
-        fill="#1a0d2e"
-        opacity="0.85"
-      />
-
-      {/* Castle silhouette (center-right, on hill) */}
-      <g transform="translate(330, 200)">
-        {/* Hill */}
-        <ellipse cx="110" cy="120" rx="130" ry="45" fill="#0f0820" />
-        {/* Main keep body */}
-        <rect x="70" y="30" width="80" height="90" fill="#0c0618" />
-        {/* Left tower */}
-        <rect x="48" y="20" width="32" height="100" fill="#0e0720" />
-        {/* Right tower */}
-        <rect x="140" y="15" width="34" height="105" fill="#0e0720" />
-        {/* Center spire */}
-        <polygon points="110,0 130,-35 150,0" fill="#120a22" />
-        {/* Left tower battlements */}
-        <rect x="46" y="14" width="8" height="10" fill="#0e0720" />
-        <rect x="58" y="14" width="8" height="10" fill="#0e0720" />
-        <rect x="70" y="14" width="8" height="10" fill="#0e0720" />
-        {/* Right tower battlements */}
-        <rect x="138" y="9" width="8" height="10" fill="#0e0720" />
-        <rect x="150" y="9" width="8" height="10" fill="#0e0720" />
-        <rect x="162" y="9" width="8" height="10" fill="#0e0720" />
-        {/* Gate arch */}
-        <path d="M96,120 L96,85 Q110,72 124,85 L124,120 Z" fill="#07040f" />
-        {/* Castle window glow */}
-        <rect x="86" y="55" width="12" height="14" fill="#f59e0b" opacity="0.18" rx="1" />
-        <rect x="116" y="55" width="12" height="14" fill="#f59e0b" opacity="0.15" rx="1" />
-        {/* Castle subtle outline */}
-        <rect x="70" y="30" width="80" height="90" fill="none" stroke="#2d1845" strokeWidth="0.5" opacity="0.5" />
-      </g>
-
-      {/* Forest — left cluster */}
-      {[
-        { x:   0, y: 350, h: 90, w: 34 },
-        { x:  22, y: 340, h:100, w: 30 },
-        { x:  48, y: 355, h: 85, w: 28 },
-        { x:  70, y: 345, h: 95, w: 32 },
-        { x:  95, y: 358, h: 80, w: 26 },
-        { x: 115, y: 348, h: 92, w: 30 },
-        { x: 140, y: 362, h: 76, w: 24 },
-        { x: 158, y: 352, h: 88, w: 28 },
-        { x: 180, y: 365, h: 74, w: 22 },
-        { x: 196, y: 355, h: 84, w: 26 },
-        { x: 216, y: 368, h: 72, w: 22 },
-        { x: 230, y: 358, h: 80, w: 24 },
-      ].map((t, i) => (
-        <polygon
-          key={`fl-${i}`}
-          points={`${t.x + t.w/2},${t.y - t.h} ${t.x + t.w},${t.y} ${t.x},${t.y}`}
-          fill={i % 3 === 0 ? '#0b0518' : i % 3 === 1 ? '#0d0620' : '#090416'}
-        />
-      ))}
-
-      {/* Forest — right cluster */}
-      {[
-        { x: 480, y: 355, h: 85, w: 30 },
-        { x: 505, y: 345, h: 95, w: 32 },
-        { x: 530, y: 360, h: 80, w: 28 },
-        { x: 555, y: 348, h: 92, w: 30 },
-        { x: 578, y: 356, h: 84, w: 28 },
-        { x: 600, y: 362, h: 78, w: 26 },
-        { x: 622, y: 350, h: 90, w: 30 },
-        { x: 648, y: 358, h: 82, w: 28 },
-        { x: 672, y: 348, h: 92, w: 32 },
-        { x: 700, y: 355, h: 86, w: 30 },
-      ].map((t, i) => (
-        <polygon
-          key={`fr-${i}`}
-          points={`${t.x + t.w/2},${t.y - t.h} ${t.x + t.w},${t.y} ${t.x},${t.y}`}
-          fill={i % 3 === 0 ? '#0b0518' : i % 3 === 1 ? '#0d0620' : '#090416'}
-        />
-      ))}
-
-      {/* Ground */}
-      <rect x="0" y="370" width="700" height="230" fill="url(#ground)" />
-
-      {/* Tavern (lower-center-left) */}
-      <g transform="translate(120, 360)">
-        {/* Building body */}
-        <rect x="0" y="0" width="90" height="70" fill="#100820" />
-        {/* Roof */}
-        <polygon points="-5,-5 45,-38 95,-5" fill="#0d0618" />
-        {/* Chimney */}
-        <rect x="58" y="-42" width="12" height="22" fill="#0d0618" />
-        {/* Chimney smoke glow */}
-        <ellipse cx="64" cy="-46" rx="8" ry="5" fill="#f59e0b" opacity="0.12" filter="url(#blur1)" />
-        {/* Main window — warm glow */}
-        <rect x="12" y="10" width="24" height="18" fill="#f59e0b" opacity="0.55" rx="1" />
-        <rect x="12" y="10" width="24" height="18" fill="none" stroke="#fbbf24" strokeWidth="0.5" rx="1" />
-        {/* Second window */}
-        <rect x="54" y="12" width="18" height="14" fill="#f59e0b" opacity="0.35" rx="1" />
-        {/* Door */}
-        <path d="M36,70 L36,45 Q45,38 54,45 L54,70 Z" fill="#07040f" />
-        {/* Sign */}
-        <rect x="30" y="-8" width="28" height="10" fill="#1a0d2a" stroke="#3d2060" strokeWidth="0.5" rx="1" />
-        <text x="44" y="-1" textAnchor="middle" fontSize="5" fill="#d4b16a" fontFamily="serif">TAVERNA</text>
-        {/* Tavern glow halo on ground */}
-        <ellipse cx="45" cy="90" rx="80" ry="30" fill="url(#tavernGlow)" filter="url(#blur2)" />
-      </g>
-
-      {/* Path / road */}
-      <path
-        d="M180,430 Q280,410 350,395 Q420,382 500,400 Q560,412 620,430"
-        fill="none"
-        stroke="#2a1845"
-        strokeWidth="8"
-        opacity="0.5"
-      />
-      <path
-        d="M180,430 Q280,410 350,395 Q420,382 500,400 Q560,412 620,430"
-        fill="none"
-        stroke="#3d2060"
-        strokeWidth="2"
-        opacity="0.3"
-      />
-
-      {/* Mist layers — foreground */}
-      <rect x="-50" y="360" width="800" height="70" fill="url(#mist1)" opacity="0.9" />
-      <rect x="100" y="390" width="600" height="50" fill="url(#mist2)" opacity="0.7" />
-      <rect x="-100" y="420" width="900" height="60" fill="url(#mist1)" opacity="0.6" />
-
-      {/* Distant lights (village windows) */}
-      {[
-        [255, 330], [268, 322], [278, 335], [290, 318], [302, 328],
-        [640, 318], [652, 308], [665, 322], [678, 312],
-      ].map(([x, y], i) => (
-        <g key={`vl-${i}`}>
-          <rect x={x - 2} y={y - 3} width={4} height={5} fill="#f59e0b" opacity={0.18 + (i % 3) * 0.08} rx="0.5" />
-          <ellipse cx={x} cy={y + 6} rx={6} ry={3} fill="#f59e0b" opacity={0.06} filter="url(#blur1)" />
-        </g>
-      ))}
-
-      {/* Arcane symbols (faint, scattered) */}
-      <g opacity="0.08" stroke="#a78bfa" strokeWidth="0.8" fill="none">
-        <circle cx="420" cy="290" r="8" />
-        <polygon points="420,282 427,294 413,294" />
-        <circle cx="150" cy="280" r="6" />
-        <polygon points="150,274 156,285 144,285" />
-      </g>
-
-      {/* Horizon fog overlay */}
-      <rect x="0" y="300" width="700" height="120" fill="url(#fogHorizon)" />
-
-      {/* Very bottom vignette */}
-      <rect x="0" y="480" width="700" height="120" fill="#07040f" opacity="0.85" />
-    </svg>
-  )
-}
 
 // ─── Ornamento separador ─────────────────────────────────────────────────────
 function Divider({ label }: { label?: string }) {
@@ -464,26 +200,6 @@ export default function LoginPage() {
           transition: opacity 0.5s ease;
         }
 
-        /* ── Art animation (fog drift) ── */
-        @keyframes fogDrift {
-          0%   { transform: translateX(-20px); opacity: 0.7; }
-          50%  { transform: translateX(20px);  opacity: 1;   }
-          100% { transform: translateX(-20px); opacity: 0.7; }
-        }
-        @keyframes tavernFlicker {
-          0%,100% { opacity: 0.92; }
-          25%      { opacity: 0.85; }
-          50%      { opacity: 0.97; }
-          75%      { opacity: 0.88; }
-        }
-        @keyframes starTwinkle {
-          0%,100% { opacity: 0.6; }
-          50%      { opacity: 1;   }
-        }
-        .art-fog    { animation: fogDrift      8s ease-in-out infinite; }
-        .art-flicker{ animation: tavernFlicker 3.2s ease-in-out infinite; }
-        .art-star   { animation: starTwinkle   2.8s ease-in-out infinite; }
-
         /* ── Corner ornaments ── */
         .corner { position:absolute; width:18px; height:18px; }
         .corner-tl { top:10px; left:10px;  border-top:1.5px solid rgba(212,177,106,0.3); border-left:1.5px solid rgba(212,177,106,0.3); border-radius:2px 0 0 0; }
@@ -626,20 +342,51 @@ export default function LoginPage() {
         ══════════════════════════════════════ */}
         <div className="login-right">
 
-          {/* Arte SVG — ocupa todo o painel */}
-          <div className="art-flicker" style={{ position:'absolute', inset:0 }}>
-            <ValdrakArt />
-          </div>
+          {/* Imagem de fallback — renderiza abaixo do vídeo */}
+          <img
+            src="/images/login-bg.jpg"
+            alt="Oráculo D20"
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', zIndex:0 }}
+          />
 
-          {/* Overlay gradient para legibilidade do texto */}
+          {/* Vídeo cinematográfico de fundo */}
+          <video
+            autoPlay
+            muted
+            loop
+            playsInline
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', zIndex:1 }}
+          >
+            <source src="/videos/login-bg.mp4" type="video/mp4" />
+          </video>
+
+          {/* Overlay escuro sobre o vídeo */}
+          <div
+            className="absolute inset-0"
+            style={{
+              position:'absolute', inset:0,
+              background:'rgba(0,0,0,0.55)',
+              backdropFilter:'blur(1px)',
+              zIndex:2,
+              pointerEvents:'none',
+            }}
+          />
+
+          {/* Gradiente lateral (integração visual com painel esquerdo) */}
           <div style={{
             position:'absolute', inset:0,
-            background:'linear-gradient(to right, rgba(7,4,15,0.55) 0%, rgba(7,4,15,0.1) 40%, rgba(7,4,15,0.0) 100%)',
+            background:'linear-gradient(to right, rgba(7,4,15,0.45) 0%, rgba(7,4,15,0.05) 35%, rgba(7,4,15,0.0) 100%)',
+            zIndex:3,
             pointerEvents:'none',
           }} />
+
+          {/* Gradiente inferior (legibilidade do texto narrativo) */}
           <div style={{
             position:'absolute', inset:0,
-            background:'linear-gradient(to top, rgba(7,4,15,0.92) 0%, rgba(7,4,15,0.3) 30%, rgba(7,4,15,0) 55%)',
+            background:'linear-gradient(to top, rgba(7,4,15,0.95) 0%, rgba(7,4,15,0.4) 28%, rgba(7,4,15,0) 50%)',
+            zIndex:3,
             pointerEvents:'none',
           }} />
 
@@ -648,7 +395,7 @@ export default function LoginPage() {
             position:'absolute',
             bottom:0, left:0, right:0,
             padding:'2.5rem 2.5rem 2rem',
-            zIndex:2,
+            zIndex:4,
           }}>
 
             {/* Título */}
