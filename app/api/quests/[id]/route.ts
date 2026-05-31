@@ -8,9 +8,11 @@ function mapQuest(raw: any): Quest {
     campaignId: String(raw.campaignId),
     title: raw.title,
     description: raw.description ?? null,
-    status: raw.status as Quest['status'],
+    status: (raw.status ?? 'active') as Quest['status'],
     progress: raw.progress ?? null,
     reward: raw.reward ?? null,
+    questType: (raw.questType ?? 'secondary') as Quest['questType'],
+    objectives: Array.isArray(raw.objectives) ? raw.objectives : [],
     createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : String(raw.createdAt),
     updatedAt: raw.updatedAt instanceof Date ? raw.updatedAt.toISOString() : String(raw.updatedAt)
   }
@@ -31,6 +33,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (body.status != null) updateData.status = body.status
     if (body.progress !== undefined) updateData.progress = body.progress
     if (body.reward !== undefined) updateData.reward = body.reward
+    if (body.objectives !== undefined) updateData.objectives = body.objectives
 
     const quest = await prisma.quest.update({
       where: { id: questId },

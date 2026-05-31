@@ -8,9 +8,11 @@ function mapQuest(raw: any): Quest {
     campaignId: String(raw.campaignId),
     title: raw.title,
     description: raw.description ?? null,
-    status: raw.status as Quest['status'],
+    status: (raw.status ?? 'active') as Quest['status'],
     progress: raw.progress ?? null,
     reward: raw.reward ?? null,
+    questType: (raw.questType ?? 'secondary') as Quest['questType'],
+    objectives: Array.isArray(raw.objectives) ? raw.objectives : [],
     createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : String(raw.createdAt),
     updatedAt: raw.updatedAt instanceof Date ? raw.updatedAt.toISOString() : String(raw.updatedAt)
   }
@@ -52,7 +54,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
         title: body.title.trim(),
         description: body.description ?? null,
         reward: body.reward ?? null,
-        status: 'active'
+        status: body.status ?? 'active',
+        questType: body.questType ?? 'secondary',
+        objectives: (body.objectives ?? []) as any,
       }
     })
 

@@ -174,14 +174,22 @@ export type CampaignPlayerJoinDTO = {
   playerName: string
 }
 
+export type QuestObjective = {
+  id: string
+  label: string
+  done: boolean
+}
+
 export type Quest = {
   id: string
   campaignId: string
   title: string
   description: string | null
-  status: 'active' | 'completed' | 'failed'
+  status: 'inactive' | 'active' | 'completed' | 'failed'
   progress: string | null
   reward: string | null
+  questType: 'main' | 'secondary'
+  objectives: QuestObjective[]
   createdAt: string
   updatedAt: string
 }
@@ -190,14 +198,18 @@ export type QuestCreateDTO = {
   title: string
   description?: string | null
   reward?: string | null
+  questType?: 'main' | 'secondary'
+  objectives?: QuestObjective[]
+  status?: 'inactive' | 'active' | 'completed' | 'failed'
 }
 
 export type QuestPatchDTO = Partial<{
   title: string
   description: string | null
-  status: 'active' | 'completed' | 'failed'
+  status: 'inactive' | 'active' | 'completed' | 'failed'
   progress: string | null
   reward: string | null
+  objectives: QuestObjective[]
 }>
 
 export type QuestUpdate = {

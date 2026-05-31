@@ -7,7 +7,7 @@ import { createPusherClient } from '../lib/pusher-client'
 import { analyzeAction, generateTestOutcomeMessage } from '../lib/masterEngine'
 import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrateAction, buildMasterMessage, buildMemorySummary } from '../lib/narrativeEngine'
 import type { Message, Campaign, Character, PendingTest, CampaignMemory, AIMasterResponse } from '../lib/types'
-import { processQuestUpdates } from '../lib/api/quests'
+import { fetchQuests, processQuestUpdates } from '../lib/api/quests'
 import { awardCharacterXp } from '../lib/api/characters'
 import CombatPanel from './CombatPanel'
 import CampaignIntroPanel from './CampaignIntroPanel'
@@ -47,6 +47,9 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
         saveCampaignMemory(campaignMemory)
         saveSceneState(campaignId, sceneStateFromMemory(campaignMemory))
       }
+
+      // Seed main quest for Taverna dos Corvos campaigns
+      fetch(`/api/campaigns/${campaignId}/quests/seed`, { method: 'POST' }).catch(() => {})
 
       const stored = getMessages(campaignId)
       const remote = await getRemoteMessages(campaignId)
@@ -254,6 +257,14 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
 
       let aiResponse: AIMasterResponse | null = null
       try {
+        const activeQuests = await fetchQuests(campaignId).then(qs =>
+          qs.filter(q => q.status === 'active').map(q => ({
+            title: q.title,
+            description: q.description,
+            progress: q.progress,
+          }))
+        ).catch(() => [])
+
         const response = await fetch(`/api/campaigns/${campaignId}/ai-master`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -263,7 +274,8 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
             activeCharacter: character,
             recentMessages,
             campaignMemory,
-            pendingTest: existingPendingTest
+            pendingTest: existingPendingTest,
+            activeQuests,
           })
         })
 

@@ -81,9 +81,21 @@ Quando pedir:
     • Atacar criatura = CD 13 | Lançar magia sob pressão = CD 15
 
 ━━ GESTÃO DE QUESTS ━━
-Em questsUpdates: crie novas quests quando o jogador descobrir objetivos importantes.
-Atualize progress com texto curto. Complete com action "complete" quando concluído.
-Cada entrada: { action, title (máximo 5 palavras), description?, progress?, reward? }
+Em questsUpdates, use as seguintes regras:
+
+QUEST PRINCIPAL "A Taverna dos Corvos":
+• Quando o jogador interagir com o TAVERNEIRO → action:"update", title:"A Taverna dos Corvos", progress:"Conversei com o taverneiro — [resumo do que foi revelado]"
+• Quando investigar DESAPARECIMENTOS → action:"update", title:"A Taverna dos Corvos", progress:"Investigando os desaparecimentos — [pista encontrada]"
+• Quando entrar na FLORESTA → action:"update", title:"A Taverna dos Corvos", progress:"Explorando a floresta — [descoberta]"
+• Quando descobrir o CULTO → action:"update", title:"A Taverna dos Corvos", progress:"Culto oculto revelado — [detalhes]"
+• Quando enfrentar a CRIATURA FINAL → action:"complete", title:"A Taverna dos Corvos"
+
+QUESTS SECUNDÁRIAS:
+• Sempre que um NPC mencionar um pedido, problema pessoal ou recompensa → action:"create" com nova quest secundária
+• Exemplos: mercador que perdeu mercadoria, aldeão doente, guardião com segredo
+• Cada quest: title (máximo 5 palavras), description (1 frase), reward (se houver)
+• Atualize progress com texto curto quando houver avanço
+• Complete com action:"complete" quando o objetivo for atingido
 
 ━━ PROIBIÇÕES ━━
 ✗ Nunca mencione D&D, Forgotten Realms, Wizards of the Coast
