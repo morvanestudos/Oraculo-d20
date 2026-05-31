@@ -19,6 +19,7 @@ model Campaign {
   theme          String?
   level          Int?
   maxPlayers     Int?
+  accessCode     String?
   createdAt      DateTime          @default(now())
   characters     Character[]
   messages       Message[]

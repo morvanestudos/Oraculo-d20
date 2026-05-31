@@ -14,6 +14,7 @@ export type Campaign = {
   description: string
   players: Player[]
   createdAt?: string
+  hasAccessCode?: boolean
 }
 
 export type CampaignCreateDTO = {
@@ -22,6 +23,7 @@ export type CampaignCreateDTO = {
   theme?: string | null
   level?: number | null
   maxPlayers?: number | null
+  accessCode?: string | null
 }
 
 export type CampaignDTO = {
@@ -33,6 +35,7 @@ export type CampaignDTO = {
   maxPlayers: number | null
   createdAt: string
   players: Player[]
+  hasAccessCode?: boolean
 }
 
 export type CharacterAttributes = {

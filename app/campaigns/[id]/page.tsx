@@ -16,6 +16,7 @@ import QuestLog from '../../../components/QuestLog'
 import GuestEntryModal from '../../../components/GuestEntryModal'
 import CharacterPickerModal from '../../../components/CharacterPickerModal'
 import WaitingRoomPanel from '../../../components/WaitingRoomPanel'
+import AccessCodeModal from '../../../components/AccessCodeModal'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer } from '../../../lib/types'
 
@@ -41,16 +42,24 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   // null = loading | false = waiting room | true = started
   const [campaignStarted, setCampaignStarted] = useState<boolean | null>(null)
   const [isStartingCampaign, setIsStartingCampaign] = useState(false)
+  // Access code gate — null = loading | false = blocked | true = granted
+  const [accessGranted, setAccessGranted] = useState<boolean | null>(null)
 
   // Copy link
   const [copied, setCopied] = useState(false)
   async function copyLink() {
     const url = window.location.href
+    const storedCode = typeof window !== 'undefined'
+      ? window.localStorage.getItem(`accessCode-${id}`)
+      : null
+    const text = storedCode && campaign
+      ? `Entre na aventura ${campaign.title}: ${url}\nCódigo da mesa: ${storedCode}`
+      : url
     try {
-      await navigator.clipboard.writeText(url)
+      await navigator.clipboard.writeText(text)
     } catch {
       const ta = document.createElement('textarea')
-      ta.value = url
+      ta.value = text
       ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
       document.body.appendChild(ta)
       ta.focus()
@@ -317,13 +326,23 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
         const memory = memoryRes.ok ? await memoryRes.json() : null
         const started = messages.length > 0 || memory?.storyFlags?.campaignStarted === true
         setCampaignStarted(started)
+
+        // Access code gate
+        if (!campaignData.hasAccessCode) {
+          setAccessGranted(true)
+        } else {
+          const stored = typeof window !== 'undefined'
+            && window.localStorage.getItem(`accessGranted-${id}`) === 'true'
+          setAccessGranted(stored ? true : false)
+        }
       } catch {
         setError('Não foi possível carregar dados do servidor. Usando dados locais.')
         setCampaign(getCampaignById(id))
         const localChars = getCharacters()
         setCampaignCharacters(localChars.filter(c => c.campaignId === id))
         setAvailableCharacters(localChars)
-        setCampaignStarted(false) // assume not started on error
+        setCampaignStarted(false)
+        setAccessGranted(true) // can't verify on error → allow (fail open)
       } finally {
         setIsLoading(false)
       }
@@ -338,6 +357,21 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
 
   return (
     <FantasyBackground image="/images/bg-campaign-room.jpg" overlayIntensity={0.66}>
+      {/* Access code gate — highest priority, blocks everything */}
+      {accessGranted === false && campaign && (
+        <AccessCodeModal
+          campaignId={id}
+          campaignTitle={campaign.title}
+          onAccessGranted={(code) => {
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(`accessGranted-${id}`, 'true')
+              window.localStorage.setItem(`accessCode-${id}`, code)
+            }
+            setAccessGranted(true)
+          }}
+        />
+      )}
+
       {/* Guest entry modal — blocks until playerName is set */}
       {showGuestModal && <GuestEntryModal onJoin={handleGuestJoin} />}
 

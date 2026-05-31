@@ -35,7 +35,8 @@ export async function GET(
       level: campaign.level ?? null,
       maxPlayers: campaign.maxPlayers ?? null,
       createdAt: campaign.createdAt.toISOString(),
-      players: []
+      players: [],
+      hasAccessCode: campaign.accessCode != null && campaign.accessCode.trim() !== '',
     }
 
     console.log(`GET /api/campaigns/${params.id}: campanha carregada`)

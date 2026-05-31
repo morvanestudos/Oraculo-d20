@@ -33,9 +33,11 @@ async function main() {
       theme: "Mistério",
       level: 1,
       maxPlayers: 6,
+      accessCode: "CORVOS",
     },
   })
-  console.log(`   ✓ Campanha criada (ID: ${campaign.id})\n`)
+  console.log(`   ✓ Campanha criada (ID: ${campaign.id})`)
+  console.log(`   🔑 Código de acesso : CORVOS\n`)
 
   console.log("🧠 Criando memória inicial...")
   await prisma.campaignMemory.create({
