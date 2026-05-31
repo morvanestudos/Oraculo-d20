@@ -34,10 +34,18 @@ export function getPlayerId(): string {
   if (!isClient()) return ''
   let id = window.localStorage.getItem(PLAYER_ID_KEY)
   if (!id) {
-    id = `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    id = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `p-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
     window.localStorage.setItem(PLAYER_ID_KEY, id)
   }
   return id
+}
+
+export function clearPlayer(): void {
+  if (!isClient()) return
+  window.localStorage.removeItem(PLAYER_ID_KEY)
+  window.localStorage.removeItem(PLAYER_NAME_KEY)
 }
 
 export function getPlayerName(): string | null {

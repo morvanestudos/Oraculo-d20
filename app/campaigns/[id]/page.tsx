@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getActiveCharacter, getCampaignById, getCharacters,
   setActiveCharacter as persistActiveCharacter, saveCharacter,
-  getPlayerId, getPlayerName, setPlayerName,
+  getPlayerId, getPlayerName, setPlayerName, clearPlayer,
 } from '../../../lib/storage'
 import { fetchCharacters, updateCharacter } from '../../../lib/api/characters'
 import { createPusherClient } from '../../../lib/pusher-client'
@@ -94,21 +94,32 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   }, [id, fetchOnlinePlayers])
 
   // ── Guest entry flow ────────────────────────────────────────────
+  // Run once on mount: decide whether to show modal or restore session
   useEffect(() => {
     const stored = getPlayerName()
     if (stored) {
       setPlayerNameState(stored)
-      joinCampaign(stored)
     } else {
       setShowGuestModal(true)
     }
-  }, [joinCampaign])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally empty — only run on mount
+
+  // Join campaign whenever playerName becomes available
+  useEffect(() => {
+    if (playerName) joinCampaign(playerName)
+  }, [playerName, joinCampaign])
 
   function handleGuestJoin(name: string) {
     setPlayerName(name)
     setPlayerNameState(name)
     setShowGuestModal(false)
-    joinCampaign(name)
+  }
+
+  function handleLeaveTable() {
+    clearPlayer()
+    setPlayerNameState(null)
+    setShowGuestModal(true)
   }
 
   // ── Heartbeat ───────────────────────────────────────────────────
@@ -364,6 +375,55 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                     <span className="ml-2 text-xs text-arcane">({onlinePlayers.length})</span>
                   )}
                 </h3>
+
+                {/* Current session identity */}
+                {playerName && (
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.45rem 0.65rem',
+                    marginBottom: '0.75rem',
+                    background: 'rgba(212,177,106,0.05)',
+                    border: '1px solid rgba(212,177,106,0.15)',
+                    borderRadius: 5,
+                    gap: 8,
+                  }}>
+                    <div style={{ fontSize: '0.72rem', color: '#9a8060', lineHeight: 1.4 }}>
+                      <span style={{ color: 'rgba(212,177,106,0.55)', textTransform: 'uppercase', letterSpacing: '0.12em', fontSize: '0.6rem' }}>
+                        Conectado como
+                      </span>
+                      <div style={{ color: '#c8a85a', fontWeight: 600, marginTop: 1 }}>{playerName}</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleLeaveTable}
+                      style={{
+                        fontSize: '0.62rem',
+                        color: 'rgba(156,163,175,0.6)',
+                        background: 'none',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        borderRadius: 4,
+                        padding: '3px 8px',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'all 0.2s',
+                        letterSpacing: '0.05em',
+                      }}
+                      onMouseEnter={e => {
+                        (e.target as HTMLButtonElement).style.color = '#f87171'
+                        ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(248,113,113,0.3)'
+                      }}
+                      onMouseLeave={e => {
+                        (e.target as HTMLButtonElement).style.color = 'rgba(156,163,175,0.6)'
+                        ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)'
+                      }}
+                    >
+                      Sair da mesa
+                    </button>
+                  </div>
+                )}
+
                 {onlinePlayers.length === 0 ? (
                   <p className="text-sm text-muted">Aguardando jogadores...</p>
                 ) : (
