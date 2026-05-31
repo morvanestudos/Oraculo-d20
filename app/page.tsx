@@ -149,7 +149,7 @@ export default async function Home() {
                       transition: 'all 0.25s',
                     }}
                   >
-                    ⚔ Criar personagem
+                    ⚔ Forjar um Herói
                   </Link>
                 </div>
 
@@ -200,9 +200,9 @@ export default async function Home() {
                       color: '#6a5838', fontSize: '0.82rem',
                       fontFamily: 'Georgia, serif', fontStyle: 'italic',
                     }}>
-                      Nenhuma campanha disponível ainda.{' '}
+                      Nenhuma lenda foi escrita ainda.{' '}
                       <Link href="/create-campaign" style={{ color: '#d4b16a', textDecoration: 'underline' }}>
-                        Criar uma.
+                        Forjar a primeira.
                       </Link>
                     </div>
                   )}

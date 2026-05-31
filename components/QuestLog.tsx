@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react'
 import { createPusherClient } from '../lib/pusher-client'
 import type { Quest, QuestObjective } from '../lib/types'
+import { getRandomLoadingPhrase } from '../lib/loadingPhrases'
 
 type Props = {
   campaignId: string
@@ -99,6 +100,7 @@ export default function QuestLog({ campaignId }: Props) {
   const [quests, setQuests] = useState<Quest[]>([])
   const [loading, setLoading] = useState(true)
   const [doneOpen, setDoneOpen] = useState(false)
+  const [loadingPhrase] = useState(() => getRandomLoadingPhrase())
 
   useEffect(() => {
     let mounted = true
@@ -203,13 +205,13 @@ export default function QuestLog({ campaignId }: Props) {
 
           {loading && (
             <p style={{ color:'#5a4820', fontSize:'0.73rem', fontStyle:'italic', margin:0 }}>
-              Consultando os pergaminhos...
+              {loadingPhrase}
             </p>
           )}
 
           {!loading && quests.length === 0 && (
             <p style={{ color:'#5a4820', fontSize:'0.73rem', fontStyle:'italic', margin:0, lineHeight:1.5 }}>
-              Nenhuma missão registrada.<br />A aventura ainda não revelou seus segredos.
+              Nenhum rumor digno de nota foi encontrado.<br />A aventura ainda não revelou seus segredos.
             </p>
           )}
 

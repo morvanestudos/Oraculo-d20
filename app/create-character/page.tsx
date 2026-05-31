@@ -121,10 +121,10 @@ export default function CreateCharacter() {
         <div className="flex-1 container mx-auto px-6 py-12">
           <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
             <div>
-              <h1 className="text-2xl font-bold mb-1">Criar personagem</h1>
+              <h1 className="text-2xl font-bold mb-1">Forjar um Herói</h1>
               {campaignIdParam && (
                 <p className="text-sm text-muted mb-4">
-                  Seu personagem será vinculado à campanha automaticamente.
+                  Seu herói será convocado para a aventura automaticamente.
                 </p>
               )}
               <form onSubmit={handleSubmit} className="space-y-5 panel glass rounded-lg p-6">
@@ -177,10 +177,10 @@ export default function CreateCharacter() {
                   <textarea value={story} onChange={e => setStory(e.target.value)} className="w-full bg-transparent border border-[rgba(255,255,255,0.08)] p-3 rounded-lg h-32" placeholder="Conte a origem e o motivo do aventureiro" />
                 </div>
 
-                {status === 'error' && <div className="text-sm text-blood">Preencha os campos de nome, espécie e classe.</div>}
+                {status === 'error' && <div className="text-sm text-blood">O escriba precisa do nome, espécie e classe para registrar o herói.</div>}
                 {status === 'success' && (
                   <div className="text-sm text-arcane">
-                    Personagem salvo!{campaignIdParam ? ' Retornando à campanha...' : ' Redirecionando...'}
+                    Seu nome agora ecoa pelos reinos.{campaignIdParam ? ' Retornando à aventura...' : ' Os anais são atualizados...'}
                   </div>
                 )}
 
@@ -194,14 +194,14 @@ export default function CreateCharacter() {
                     </a>
                   )}
                   <button type="submit" className="px-6 py-3 bg-gradient-to-r from-arcane to-accent text-black rounded-lg font-semibold shadow ml-auto">
-                    Salvar personagem
+                    Registrar nos Anais do Reino
                   </button>
                 </div>
               </form>
             </div>
 
             <div className="panel glass rounded-lg p-6">
-              <h2 className="text-xl font-semibold mb-4">Prévia rápida</h2>
+              <h2 className="text-xl font-semibold mb-4">Visão do Oráculo</h2>
               <CharacterSheet character={character} />
             </div>
           </div>

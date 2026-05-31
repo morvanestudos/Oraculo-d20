@@ -189,7 +189,7 @@ export default function ValdrakMap({ campaignId, campaignTitle }: Props) {
             {loading ? (
               <div style={{ height: 60, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <span style={{ fontSize: '0.7rem', color: '#5a4820', fontStyle: 'italic' }}>
-                  Carregando mapa...
+                  Os cartógrafos desenham os caminhos...
                 </span>
               </div>
             ) : (

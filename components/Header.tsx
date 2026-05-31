@@ -78,9 +78,9 @@ export default function Header() {
 
         {/* Nav */}
         <nav className="flex flex-wrap items-center gap-2">
-          <Link href="/dashboard" className="nav-pill">Mesa</Link>
-          <Link href="/create-character" className="nav-pill">Personagem</Link>
-          <Link href="/create-campaign" className="nav-pill">Campanha</Link>
+          <Link href="/dashboard" className="nav-pill">Salão</Link>
+          <Link href="/create-character" className="nav-pill">Heróis</Link>
+          <Link href="/create-campaign" className="nav-pill">Nova Lenda</Link>
           {user ? (
             <>
               <span className="text-xs text-muted ml-1" style={{ opacity: 0.6 }}>{user.email}</span>
@@ -111,7 +111,7 @@ export default function Header() {
                 textDecoration: 'none',
               }}
             >
-              Entrar
+              Adentrar o Reino
             </Link>
           )}
         </nav>

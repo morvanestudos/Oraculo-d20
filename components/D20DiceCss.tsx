@@ -83,7 +83,7 @@ export default function D20DiceCss({ result, rolling, onRoll }: Props) {
         className="dice-button"
         style={{ opacity: rolling ? 0.65 : 1, cursor: rolling ? 'not-allowed' : 'pointer' }}
       >
-        {rolling ? 'Rolando…' : 'Role o destino'}
+        {rolling ? 'Consultando o oráculo…' : 'Consultar os Destinos'}
       </button>
 
       {label && !rolling && (

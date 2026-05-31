@@ -403,7 +403,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   }, [id])
 
   // ── Render ──────────────────────────────────────────────────────
-  if (isLoading) return <div className="text-muted p-8">Carregando campanha...</div>
+  if (isLoading) return <div className="text-muted p-8 italic">O Mestre Arcano prepara os pergaminhos...</div>
   if (!campaign) return <div className="text-muted p-8">Campanha não encontrada.</div>
 
   return (
@@ -603,7 +603,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
               {/* Online players */}
               <div className="panel glass p-4 rounded-lg">
                 <h3 className="font-semibold mb-3">
-                  Jogadores na mesa
+                  Aventureiros Presentes
                   {onlinePlayers.length > 0 && (
                     <span className="ml-2 text-xs text-arcane">({onlinePlayers.length})</span>
                   )}
@@ -651,7 +651,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                 )}
 
                 {onlinePlayers.length === 0 ? (
-                  <p className="text-sm text-muted">Aguardando jogadores...</p>
+                  <p className="text-sm text-muted italic">Nenhum aventureiro chegou ao salão.</p>
                 ) : (
                   <ul className="space-y-2">
                     {onlinePlayers.map(p => {
@@ -685,9 +685,9 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
               {/* Use character in campaign */}
               {activeCharacter && activeCharacter.campaignId !== id && (
                 <div className="panel glass p-4 rounded-lg">
-                  <h3 className="font-semibold mb-3">Entrar nesta campanha</h3>
+                  <h3 className="font-semibold mb-3">Juntar-se à Expedição</h3>
                   <div className="text-sm text-muted mb-4">
-                    Seu personagem ativo não está vinculado a esta campanha.
+                    Seu herói ainda não adentrou esta aventura.
                   </div>
                   <button
                     type="button"
@@ -695,7 +695,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                     onClick={() => handleUseCharacter(activeCharacter)}
                     className="w-full text-xs uppercase tracking-[0.2em] px-4 py-3 bg-gradient-to-r from-arcane to-accent text-black rounded-lg font-semibold"
                   >
-                    {isJoining ? 'Entrando...' : 'Entrar nesta campanha'}
+                    {isJoining ? 'Atravessando os portões...' : 'Juntar-se à Expedição'}
                   </button>
                   {joinError && <div className="text-sm text-blood mt-3">{joinError}</div>}
                 </div>
@@ -703,7 +703,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
 
               {/* My characters */}
               <div className="panel glass p-4 rounded-lg">
-                <h3 className="font-semibold mb-3">Meus personagens</h3>
+                <h3 className="font-semibold mb-3">Companheiros de Jornada</h3>
                 {availableCharacters.length > 0 ? (
                   <ul className="space-y-3 text-sm text-muted">
                     {availableCharacters.map(character => {
@@ -740,7 +740,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                     })}
                   </ul>
                 ) : (
-                  <div className="text-sm text-muted">Crie um personagem para entrar na campanha.</div>
+                  <div className="text-sm text-muted italic">Nenhum herói forjado ainda. Visite o Salão dos Heróis.</div>
                 )}
               </div>
 
@@ -780,7 +780,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                     })}
                   </ul>
                 ) : (
-                  <div className="text-sm text-muted">Nenhum personagem nesta campanha ainda.</div>
+                  <div className="text-sm text-muted italic">Nenhum herói adentrou esta aventura ainda.</div>
                 )}
               </div>
 
@@ -790,7 +790,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                 {activeCharacter ? (
                   <CharacterSheet character={activeCharacter} />
                 ) : (
-                  <div className="text-sm text-muted">Nenhum personagem ativo. Crie um na página de personagem.</div>
+                  <div className="text-sm text-muted italic">Nenhum herói ativo. Forje um no Salão dos Heróis.</div>
                 )}
               </div>
             </aside>

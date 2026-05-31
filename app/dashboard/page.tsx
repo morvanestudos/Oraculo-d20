@@ -4,11 +4,13 @@ import React, { useEffect, useState } from 'react'
 import CampaignCard from '../../components/CampaignCard'
 import FantasyBackground from '../../components/FantasyBackground'
 import type { Campaign } from '../../lib/types'
+import { getRandomLoadingPhrase } from '../../lib/loadingPhrases'
 
 export default function Dashboard() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [loadingPhrase] = useState(() => getRandomLoadingPhrase())
 
   useEffect(() => {
     async function loadCampaigns() {
@@ -33,8 +35,8 @@ export default function Dashboard() {
         <div className="flex-1 container mx-auto px-6 py-12">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold">Dashboard</h1>
-              <p className="text-muted mt-1">Escolha uma campanha para iniciar sua aventura.</p>
+              <h1 className="text-2xl font-bold">Salão das Aventuras</h1>
+              <p className="text-muted mt-1">Escolha uma lenda para adentrar. O Mestre aguarda.</p>
             </div>
           </div>
 
@@ -43,9 +45,9 @@ export default function Dashboard() {
           )}
 
           {isLoading ? (
-            <div className="text-muted">Carregando campanhas...</div>
+            <div className="text-muted italic">{loadingPhrase}</div>
           ) : campaigns.length === 0 && !error ? (
-            <div className="text-muted">Nenhuma campanha disponível no momento.</div>
+            <div className="text-muted italic">Nenhuma lenda foi escrita ainda. Que tal criar a primeira?</div>
           ) : !error ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {campaigns.map(c => (

@@ -112,7 +112,7 @@ export default function CampaignCard({ campaign }: Props) {
               whiteSpace: 'nowrap',
             }}
           >
-            Abrir mesa →
+            Entrar na Aventura →
           </Link>
         </div>
       </div>

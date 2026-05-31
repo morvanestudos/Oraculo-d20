@@ -141,7 +141,7 @@ export default function LoginPage() {
                 marginTop: '0.25rem',
               }}
             >
-              {loading ? 'Aguarde...' : mode === 'login' ? 'Entrar' : 'Criar conta'}
+              {loading ? 'Abrindo os portões...' : mode === 'login' ? 'Adentrar o Reino' : 'Iniciar uma Nova Jornada'}
             </button>
           </form>
 
@@ -149,24 +149,24 @@ export default function LoginPage() {
           <div className="mt-4 text-sm text-center text-muted">
             {mode === 'login' ? (
               <>
-                Não tem conta?{' '}
+                Sua jornada ainda não começou?{' '}
                 <button
                   type="button"
                   onClick={() => { setMode('register'); setError('') }}
                   style={{ color: '#d4b16a', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
                 >
-                  Criar conta
+                  Iniciar uma Nova Jornada
                 </button>
               </>
             ) : (
               <>
-                Já tem conta?{' '}
+                Já percorreu estes caminhos?{' '}
                 <button
                   type="button"
                   onClick={() => { setMode('login'); setError('') }}
                   style={{ color: '#d4b16a', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 3 }}
                 >
-                  Entrar
+                  Adentrar o Reino
                 </button>
               </>
             )}

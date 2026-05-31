@@ -49,7 +49,7 @@ export default function CreateCampaign() {
       const created = await response.json()
       console.log('Campanha criada no banco:', created)
       setStatus('success')
-      setMessage('Campanha criada com sucesso! Redirecionando...')
+      setMessage('Uma nova lenda acaba de nascer. Convocando aventureiros...')
       window.setTimeout(() => router.push('/dashboard'), 600)
     } catch (error) {
       console.error('Erro ao criar campanha no banco, usando fallback localStorage:', error)
@@ -62,7 +62,7 @@ export default function CreateCampaign() {
         description
       })
       setStatus('warning')
-      setMessage('Não foi possível salvar no banco. Campanha guardada localmente e redirecionando...')
+      setMessage('Os pergaminhos foram guardados localmente. A lenda prossegue...')
       window.setTimeout(() => router.push('/dashboard'), 1200)
     }
   }
@@ -72,7 +72,7 @@ export default function CreateCampaign() {
       <div className="min-h-screen flex flex-col">
         <div className="flex-1 container mx-auto px-6 py-12">
       <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold mb-4">Criar campanha</h1>
+      <h1 className="text-2xl font-bold mb-4">Criar Nova Lenda</h1>
       <form onSubmit={handleSubmit} className="space-y-5 panel glass rounded-lg p-6">
         <div>
           <label className="block text-sm font-medium mb-1">Nome da campanha</label>
@@ -102,7 +102,7 @@ export default function CreateCampaign() {
           </div>
         )}
         <div className="flex justify-end">
-          <button type="submit" className="px-6 py-3 bg-gradient-to-r from-arcane to-accent text-black rounded-lg font-semibold shadow">Salvar campanha</button>
+          <button type="submit" className="px-6 py-3 bg-gradient-to-r from-arcane to-accent text-black rounded-lg font-semibold shadow">Invocar a Aventura</button>
         </div>
       </form>
     </div>

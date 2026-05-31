@@ -218,7 +218,7 @@ export default function CharacterPickerModal({
               fontStyle: 'italic',
               marginBottom: '1.25rem',
             }}>
-              Nenhum personagem criado ainda.
+              Nenhum herói forjado ainda. Visite o Salão dos Heróis.
             </p>
           )}
 

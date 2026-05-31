@@ -9,15 +9,15 @@ export default function Sidebar() {
         <nav className="flex flex-col gap-2">
           <Link href="/dashboard" className="sidebar-entry">
             <svg className="w-5 h-5 text-arcane" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" d="M3 7h18M3 12h18M3 17h18"/></svg>
-            <span>Mapa da Campanha</span>
+            <span>Mapa dos Reinos</span>
           </Link>
           <Link href="/create-campaign" className="sidebar-entry">
             <svg className="w-5 h-5 text-gold" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5z"/></svg>
-            <span>Pergaminho de Aventura</span>
+            <span>Crônicas da Jornada</span>
           </Link>
           <Link href="/create-character" className="sidebar-entry">
             <svg className="w-5 h-5 text-magicblue" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zM6 20v-1c0-2.21 3.582-4 6-4s6 1.79 6 4v1H6z"/></svg>
-            <span>Forjar Herói</span>
+            <span>Salão dos Heróis</span>
           </Link>
         </nav>
 
