@@ -1,4 +1,3 @@
-import { campaigns as mockCampaigns } from './mock'
 import type { Campaign, Character, Message, PendingTest, CombatState, SceneState, CampaignMemory } from './types'
 
 const PLAYER_ID_KEY = 'oraculo-d20:player-id'
@@ -52,15 +51,7 @@ export function setPlayerName(name: string): void {
 }
 
 export function getCampaigns(): Campaign[] {
-  const saved = parseStorage<Campaign[]>(CAMPAIGNS_KEY, [])
-  const merged = [...saved, ...mockCampaigns]
-  const unique: Record<string, Campaign> = {}
-
-  merged.forEach(c => {
-    unique[c.id] = c
-  })
-
-  return Object.values(unique)
+  return parseStorage<Campaign[]>(CAMPAIGNS_KEY, [])
 }
 
 export function saveCampaign(campaign: Omit<Campaign, 'players'>) {
@@ -76,9 +67,7 @@ export function saveCampaign(campaign: Omit<Campaign, 'players'>) {
 
 export function getCampaignById(id: string): Campaign {
   const saved = parseStorage<Campaign[]>(CAMPAIGNS_KEY, [])
-  const found = saved.find(c => c.id === id)
-  if (found) return found
-  return mockCampaigns.find(c => c.id === id) ?? {
+  return saved.find(c => c.id === id) ?? {
     id: 'unknown',
     title: 'Campanha desconhecida',
     theme: 'Mística',

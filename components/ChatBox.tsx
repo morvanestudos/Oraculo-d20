@@ -50,11 +50,17 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
       const stored = getMessages(campaignId)
       const remote = await getRemoteMessages(campaignId)
 
+      const introAlreadySeen =
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem(`introSeen-${campaignId}`) === 'true'
+
       if (remote && remote.length > 0) {
         setMessages(remote)
         setShowIntro(false)
       } else if (stored.length > 0) {
         setMessages(stored)
+        setShowIntro(false)
+      } else if (introAlreadySeen) {
         setShowIntro(false)
       } else {
         setShowIntro(true)
@@ -64,8 +70,13 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
     loadMessages().catch(error => {
       console.error('Falha ao carregar mensagens da API, usando fallback local:', error)
       const fallback = getMessages(campaignId)
+      const introAlreadySeen =
+        typeof window !== 'undefined' &&
+        window.localStorage.getItem(`introSeen-${campaignId}`) === 'true'
       if (fallback.length > 0) {
         setMessages(fallback)
+        setShowIntro(false)
+      } else if (introAlreadySeen) {
         setShowIntro(false)
       } else {
         setShowIntro(true)
@@ -94,8 +105,21 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
     }
   }, [campaignId])
 
+  function markIntroSeen() {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`introSeen-${campaignId}`, 'true')
+    }
+  }
+
+  function handleDismissIntro() {
+    markIntroSeen()
+    setShowIntro(false)
+  }
+
   async function handleStartAdventure(initialMessage: string) {
     setIsStarting(true)
+    markIntroSeen()
+
     const tempMsg: Message = {
       id: `temp-${Date.now()}`,
       campaignId,
@@ -423,6 +447,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
       <CampaignIntroPanel
         campaign={campaign}
         onStart={handleStartAdventure}
+        onDismiss={handleDismissIntro}
         isStarting={isStarting}
       />
     )

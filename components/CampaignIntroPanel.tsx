@@ -8,13 +8,9 @@ const TAVERNA_INTRO =
   'ranger da madeira, algo observa do lado de fora.'
 
 export const TAVERNA_INITIAL_MESSAGE =
-  'Uma chuva fina cobre os telhados tortos da pequena vila de Valdrak. ' +
-  'O cheiro de madeira molhada e fumaça paira no ar enquanto você empurra a porta rangente da Taverna dos Corvos.\n\n' +
-  'Dentro, o calor da lareira contrasta com o frio lá fora. Brós, o taverneiro — homem robusto de olhos cansados — limpa o balcão e ergue os olhos para você.\n\n' +
-  '*"Mais um aventureiro... ou veio apenas beber?"* ele murmura, a voz baixa.\n\n' +
-  'Rumores circulam: moradores desaparecem durante a madrugada. Cantos estranhos vêm da floresta ao norte. ' +
-  'Alguns juram ter visto olhos vermelhos entre as árvores.\n\n' +
-  '**O que você faz?**'
+  'A porta da Taverna dos Corvos range quando vocês entram. O salão silencia por um instante. ' +
+  'O taverneiro observa por trás do balcão, enquanto a chuva bate contra as janelas. ' +
+  'Algo nesta vila está profundamente errado. O que vocês fazem?'
 
 const TAVERNA_FALLBACK_OBJECTIVES = [
   'Investigar os desaparecimentos',
@@ -27,10 +23,11 @@ const TAVERNA_FALLBACK_OBJECTIVES = [
 type Props = {
   campaign: Campaign
   onStart: (initialMessage: string) => Promise<void>
+  onDismiss: () => void
   isStarting: boolean
 }
 
-export default function CampaignIntroPanel({ campaign, onStart, isStarting }: Props) {
+export default function CampaignIntroPanel({ campaign, onStart, onDismiss, isStarting }: Props) {
   const [quests, setQuests] = useState<Quest[]>([])
   const [visible, setVisible] = useState(false)
 
@@ -97,9 +94,47 @@ export default function CampaignIntroPanel({ campaign, onStart, isStarting }: Pr
           cursor: wait;
           animation: none;
         }
+        .intro-dismiss-btn {
+          position: absolute;
+          top: 14px;
+          right: 14px;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(212,177,106,0.2);
+          border-radius: 50%;
+          color: rgba(212,177,106,0.55);
+          font-size: 0.85rem;
+          line-height: 1;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          z-index: 10;
+        }
+        .intro-dismiss-btn:hover {
+          background: rgba(212,177,106,0.08);
+          border-color: rgba(212,177,106,0.45);
+          color: rgba(212,177,106,0.9);
+        }
       `}</style>
 
-      {/* Full-screen overlay */}
+      {/* Backdrop */}
+      <div
+        onClick={onDismiss}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9998,
+          background: 'rgba(2,1,0,0.82)',
+          backdropFilter: 'blur(2px)',
+          opacity: visible ? 1 : 0,
+          transition: 'opacity 0.45s ease',
+        }}
+      />
+
+      {/* Scroll container — centers panel and handles overflow */}
       <div style={{
         position: 'fixed',
         inset: 0,
@@ -108,43 +143,58 @@ export default function CampaignIntroPanel({ campaign, onStart, isStarting }: Pr
         alignItems: 'center',
         justifyContent: 'center',
         padding: '1.5rem',
-        background: 'linear-gradient(180deg, rgba(2,1,0,0.97) 0%, rgba(6,3,1,0.96) 100%)',
-        opacity: visible ? 1 : 0,
-        transition: 'opacity 0.55s ease',
+        pointerEvents: 'none',   // let backdrop handle clicks outside
+        overflowY: 'auto',
       }}>
-        {/* Ambient light blobs */}
+        {/* Ambient light */}
         <div style={{
-          position: 'absolute',
+          position: 'fixed',
           inset: 0,
           pointerEvents: 'none',
           backgroundImage: [
-            'radial-gradient(ellipse 60% 40% at 50% 20%, rgba(212,177,106,0.065) 0%, transparent 70%)',
+            'radial-gradient(ellipse 60% 40% at 50% 20%, rgba(212,177,106,0.06) 0%, transparent 70%)',
             'radial-gradient(ellipse 40% 35% at 80% 75%, rgba(79,70,229,0.04) 0%, transparent 60%)',
           ].join(', '),
         }} />
 
         {/* Parchment panel */}
-        <div style={{
-          position: 'relative',
-          maxWidth: 540,
-          width: '100%',
-          padding: '2.6rem 2.5rem 2.2rem',
-          background: 'linear-gradient(175deg, rgba(22,13,5,0.99) 0%, rgba(11,6,2,0.99) 100%)',
-          border: '1px solid rgba(212,177,106,0.28)',
-          borderRadius: 8,
-          boxShadow: [
-            '0 0 90px rgba(0,0,0,0.85)',
-            '0 0 45px rgba(212,177,106,0.055)',
-            'inset 0 1px 0 rgba(212,177,106,0.11)',
-            'inset 0 -1px 0 rgba(212,177,106,0.05)',
-          ].join(', '),
-          transform: visible ? 'translateY(0)' : 'translateY(20px)',
-          transition: 'transform 0.55s ease',
-        }}>
+        <div
+          style={{
+            position: 'relative',
+            maxWidth: 540,
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            overscrollBehavior: 'contain',
+            padding: '2.6rem 2.5rem 2.2rem',
+            background: 'linear-gradient(175deg, rgba(22,13,5,0.99) 0%, rgba(11,6,2,0.99) 100%)',
+            border: '1px solid rgba(212,177,106,0.28)',
+            borderRadius: 8,
+            boxShadow: [
+              '0 0 90px rgba(0,0,0,0.85)',
+              '0 0 45px rgba(212,177,106,0.055)',
+              'inset 0 1px 0 rgba(212,177,106,0.11)',
+              'inset 0 -1px 0 rgba(212,177,106,0.05)',
+            ].join(', '),
+            transform: visible ? 'translateY(0)' : 'translateY(20px)',
+            transition: 'transform 0.55s ease, opacity 0.55s ease',
+            opacity: visible ? 1 : 0,
+            pointerEvents: 'auto',   // panel is clickable
+          }}
+        >
+          {/* × close button */}
+          <button
+            className="intro-dismiss-btn"
+            onClick={onDismiss}
+            aria-label="Fechar introdução"
+            disabled={isStarting}
+          >
+            ×
+          </button>
 
           {/* Corner ornaments */}
           <div style={{ position:'absolute', top:10, left:10, width:20, height:20, borderTop:'1.5px solid rgba(212,177,106,0.38)', borderLeft:'1.5px solid rgba(212,177,106,0.38)', borderRadius:'2px 0 0 0' }} />
-          <div style={{ position:'absolute', top:10, right:10, width:20, height:20, borderTop:'1.5px solid rgba(212,177,106,0.38)', borderRight:'1.5px solid rgba(212,177,106,0.38)', borderRadius:'0 2px 0 0' }} />
+          <div style={{ position:'absolute', top:10, right:46, width:20, height:20, borderTop:'1.5px solid rgba(212,177,106,0.38)', borderRight:'1.5px solid rgba(212,177,106,0.38)', borderRadius:'0 2px 0 0' }} />
           <div style={{ position:'absolute', bottom:10, left:10, width:20, height:20, borderBottom:'1.5px solid rgba(212,177,106,0.38)', borderLeft:'1.5px solid rgba(212,177,106,0.38)', borderRadius:'0 0 0 2px' }} />
           <div style={{ position:'absolute', bottom:10, right:10, width:20, height:20, borderBottom:'1.5px solid rgba(212,177,106,0.38)', borderRight:'1.5px solid rgba(212,177,106,0.38)', borderRadius:'0 0 2px 0' }} />
 
