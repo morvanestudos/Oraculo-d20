@@ -9,6 +9,10 @@ export const LOADING_PHRASES = [
   'Os cartógrafos desenham os caminhos...',
   'Novos rumores surgem nas tavernas...',
   'As estrelas revelam o destino dos aventureiros...',
+  'Algo observa da floresta de Valdrak...',
+  'Novas lendas estão prestes a nascer...',
+  'Os dados do destino começam a rolar...',
+  'O Oráculo desperta mais uma vez...',
 ]
 
 export function getRandomLoadingPhrase(): string {
