@@ -39,6 +39,9 @@ function mapCharacter(record: any) {
     },
     inventory: parseInventory(record.inventory),
     story: record.backstory ?? '',
+    prologue: record.prologue ?? null,
+    xp: record.xp ?? 0,
+    nextLevelXp: record.nextLevelXp ?? 100,
     campaignId: record.campaignId,
     createdAt: record.createdAt?.toISOString() ?? new Date().toISOString()
   }

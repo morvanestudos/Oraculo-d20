@@ -18,6 +18,9 @@ import CharacterPickerModal from '../../../components/CharacterPickerModal'
 import WaitingRoomPanel from '../../../components/WaitingRoomPanel'
 import AccessCodeModal from '../../../components/AccessCodeModal'
 import ProloguePanel from '../../../components/ProloguePanel'
+import WorldStatusPanel from '../../../components/WorldStatusPanel'
+import NpcPanel from '../../../components/NpcPanel'
+import ValdrakMap from '../../../components/ValdrakMap'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer } from '../../../lib/types'
 
@@ -578,14 +581,20 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              <div className="panel glass p-4 rounded-lg">
-                <h3 className="font-semibold mb-2">Logs de Combate</h3>
-                <div className="bg-[#07070a] p-3 rounded h-32 overflow-y-auto text-sm text-muted">Sem eventos recentes.</div>
-              </div>
+              <WorldStatusPanel
+                campaignId={id}
+                campaignTitle={campaign.title}
+              />
             </div>
 
             {/* ── Sidebar ── */}
             <aside className="space-y-4">
+              {/* Map */}
+              <ValdrakMap campaignId={campaign.id} campaignTitle={campaign.title} />
+
+              {/* NPCs */}
+              <NpcPanel campaignId={campaign.id} campaignTitle={campaign.title} />
+
               {/* Quests */}
               <div className="panel glass p-4 rounded-lg">
                 <QuestLog campaignId={campaign.id} />
@@ -634,14 +643,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                         transition: 'all 0.2s',
                         letterSpacing: '0.05em',
                       }}
-                      onMouseEnter={e => {
-                        (e.target as HTMLButtonElement).style.color = '#f87171'
-                        ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(248,113,113,0.3)'
-                      }}
-                      onMouseLeave={e => {
-                        (e.target as HTMLButtonElement).style.color = 'rgba(156,163,175,0.6)'
-                        ;(e.target as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)'
-                      }}
+                    
                     >
                       Sair da mesa
                     </button>

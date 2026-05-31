@@ -40,6 +40,8 @@ function mapCharacter(record: any) {
     inventory: parseInventory(record.inventory),
     story: record.backstory ?? '',
     prologue: record.prologue ?? null,
+    xp: record.xp ?? 0,
+    nextLevelXp: record.nextLevelXp ?? 100,
     campaignId: record.campaignId,
     createdAt: record.createdAt?.toISOString() ?? new Date().toISOString()
   }
@@ -83,6 +85,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (body.inventory !== undefined) data.inventory = JSON.stringify(body.inventory)
   if (body.backstory !== undefined) data.backstory = body.backstory
   if (body.prologue !== undefined) data.prologue = body.prologue
+  if (body.xp !== undefined && body.xp !== null) data.xp = body.xp
+  if (body.nextLevelXp !== undefined && body.nextLevelXp !== null) data.nextLevelXp = body.nextLevelXp
 
   if (body.campaignId !== undefined) {
     if (body.campaignId === null) {

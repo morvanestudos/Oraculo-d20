@@ -71,9 +71,11 @@ model Character {
   wisdom      Int?
   charisma    Int?
   inventory   String?
-  backstory   String?
-  prologue    String?
-  campaignId  Int?
+  backstory    String?
+  prologue     String?
+  xp           Int      @default(0)
+  nextLevelXp  Int      @default(100)
+  campaignId   Int?
   campaign    Campaign? @relation(fields: [campaignId], references: [id])
   createdAt   DateTime  @default(now())
 }

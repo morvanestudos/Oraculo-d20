@@ -59,6 +59,8 @@ export type Character = {
   inventory: string[]
   story: string
   prologue?: string | null
+  xp?: number
+  nextLevelXp?: number
   campaignId?: string | null
   createdAt?: string
 }
@@ -97,6 +99,8 @@ export type CharacterPatchDTO = Partial<{
   inventory: string[]
   backstory: string | null
   prologue: string | null
+  xp: number | null
+  nextLevelXp: number | null
   campaignId: string | null
 }>
 
@@ -204,6 +208,21 @@ export type QuestUpdate = {
   reward?: string
 }
 
+export type ItemRarity = 'comum' | 'incomum' | 'raro' | 'amaldiçoado'
+export type ItemType = 'chave' | 'poção' | 'arma' | 'pista' | 'artefato' | 'equipamento'
+
+export type InventoryItem = {
+  name: string
+  description?: string | null
+  rarity?: ItemRarity
+  type?: ItemType
+}
+
+export type InventoryUpdate = {
+  action: 'add' | 'remove'
+  item: InventoryItem
+}
+
 export type AIMasterResponse = {
   narration: string
   requiresRoll: boolean
@@ -211,6 +230,7 @@ export type AIMasterResponse = {
   difficultyClass: number | null
   suggestedActions?: string[]
   questsUpdates?: QuestUpdate[]
+  inventoryUpdates?: InventoryUpdate[]
   memoryUpdates: {
     currentScene: string
     currentLocation: string

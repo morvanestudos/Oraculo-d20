@@ -27,9 +27,35 @@ function parseCharacterApiResponse(data: any): Character {
     },
     inventory,
     story: data.story ?? data.backstory ?? '',
+    prologue: data.prologue ?? null,
+    xp: Number(data.xp ?? 0),
+    nextLevelXp: Number(data.nextLevelXp ?? 100),
     campaignId: data.campaignId ?? null,
     createdAt: data.createdAt
   }
+}
+
+export async function awardCharacterXp(
+  characterId: string,
+  xpAmount: number,
+  currentXp: number,
+  currentNextLevelXp: number,
+  currentLevel: number
+): Promise<{ character: Character; leveledUp: boolean; newLevel: number }> {
+  let xp = currentXp + xpAmount
+  let level = currentLevel
+  let nextLevelXp = currentNextLevelXp
+  let leveledUp = false
+
+  while (xp >= nextLevelXp) {
+    xp -= nextLevelXp
+    level += 1
+    nextLevelXp += 100
+    leveledUp = true
+  }
+
+  const character = await updateCharacter(characterId, { xp, level, nextLevelXp })
+  return { character, leveledUp, newLevel: level }
 }
 
 function parseInventory(raw: string): string[] {

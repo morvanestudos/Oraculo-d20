@@ -8,6 +8,7 @@ import { analyzeAction, generateTestOutcomeMessage } from '../lib/masterEngine'
 import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrateAction, buildMasterMessage, buildMemorySummary } from '../lib/narrativeEngine'
 import type { Message, Campaign, Character, PendingTest, CampaignMemory, AIMasterResponse } from '../lib/types'
 import { processQuestUpdates } from '../lib/api/quests'
+import { awardCharacterXp } from '../lib/api/characters'
 import CombatPanel from './CombatPanel'
 import CampaignIntroPanel from './CampaignIntroPanel'
 
@@ -418,9 +419,88 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
       }
 
       if (aiResponse.questsUpdates && aiResponse.questsUpdates.length > 0) {
-        processQuestUpdates(campaignId, aiResponse.questsUpdates).catch(e =>
-          console.error('Erro ao processar quests:', e)
-        )
+        try {
+          await processQuestUpdates(campaignId, aiResponse.questsUpdates)
+
+          // Award XP for each completed quest
+          const completedQuests = aiResponse.questsUpdates.filter(u => u.action === 'complete')
+          if (completedQuests.length > 0 && character) {
+            const XP_PER_QUEST = 50
+            const xpGain = completedQuests.length * XP_PER_QUEST
+
+            const { leveledUp, newLevel } = await awardCharacterXp(
+              character.id,
+              xpGain,
+              character.xp ?? 0,
+              character.nextLevelXp ?? 100,
+              character.level
+            )
+
+            // XP message
+            const xpMsg: Message = {
+              id: `msg-${Date.now()}-xp`,
+              campaignId,
+              author: 'Sistema',
+              role: 'system',
+              content: `${character.name} ganhou ${xpGain} XP.`,
+              createdAt: new Date().toISOString(),
+            }
+            setMessages(prev => [...prev, xpMsg])
+            createMessage(campaignId, { author: xpMsg.author, role: xpMsg.role, content: xpMsg.content })
+              .then(m => { if (m) saveMessage(m) })
+              .catch(() => {})
+
+            // Level up message
+            if (leveledUp) {
+              const lvlMsg: Message = {
+                id: `msg-${Date.now()}-levelup`,
+                campaignId,
+                author: 'Sistema',
+                role: 'system',
+                content: `✨ ${character.name} chegou ao nível ${newLevel}!`,
+                createdAt: new Date().toISOString(),
+              }
+              setMessages(prev => [...prev, lvlMsg])
+              createMessage(campaignId, { author: lvlMsg.author, role: lvlMsg.role, content: lvlMsg.content })
+                .then(m => { if (m) saveMessage(m) })
+                .catch(() => {})
+            }
+          }
+        } catch (e) {
+          console.error('Erro ao processar quests/XP:', e)
+        }
+      }
+
+      // Handle inventory updates from AI (when prompt supports it)
+      if (aiResponse.inventoryUpdates && aiResponse.inventoryUpdates.length > 0 && character) {
+        try {
+          const { updateCharacter } = await import('../lib/api/characters')
+          const currentInventory: string[] = Array.isArray(character.inventory) ? character.inventory : []
+          let updated = [...currentInventory]
+
+          for (const upd of aiResponse.inventoryUpdates) {
+            if (upd.action === 'add') {
+              const entry = typeof upd.item === 'object'
+                ? JSON.stringify(upd.item)
+                : String(upd.item)
+              if (!updated.includes(entry)) updated.push(entry)
+
+              const sysMsg = `${character.name} recebeu: ${upd.item.name}.`
+              createMessage(campaignId, { author: 'Sistema', role: 'system', content: sysMsg })
+                .then(m => { if (m) { saveMessage(m); setMessages(prev => [...prev, m]) } })
+                .catch(() => {})
+            } else if (upd.action === 'remove') {
+              updated = updated.filter(i => {
+                const name = (() => { try { return JSON.parse(i)?.name ?? i } catch { return i } })()
+                return name.toLowerCase() !== upd.item.name.toLowerCase()
+              })
+            }
+          }
+
+          await updateCharacter(character.id, { inventory: updated }).catch(() => {})
+        } catch (e) {
+          console.error('Erro ao processar inventoryUpdates:', e)
+        }
       }
 
       setIsMasterTyping(false)
