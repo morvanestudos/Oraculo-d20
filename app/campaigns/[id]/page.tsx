@@ -65,13 +65,19 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   const joinCampaign = useCallback(async (name: string) => {
     const pid = getPlayerId()
     try {
-      await fetch(`/api/campaigns/${id}/players/join`, {
+      const res = await fetch(`/api/campaigns/${id}/players/join`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playerId: pid, playerName: name }),
       })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error('Erro ao registrar jogador:', body)
+      }
       await fetchOnlinePlayers()
-    } catch { /* silent */ }
+    } catch (error) {
+      console.error('Erro ao registrar jogador:', error)
+    }
   }, [id, fetchOnlinePlayers])
 
   // ── Link character to player ────────────────────────────────────
