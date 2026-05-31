@@ -72,6 +72,7 @@ model Character {
   charisma    Int?
   inventory   String?
   backstory   String?
+  prologue    String?
   campaignId  Int?
   campaign    Campaign? @relation(fields: [campaignId], references: [id])
   createdAt   DateTime  @default(now())

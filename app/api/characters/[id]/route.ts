@@ -39,6 +39,7 @@ function mapCharacter(record: any) {
     },
     inventory: parseInventory(record.inventory),
     story: record.backstory ?? '',
+    prologue: record.prologue ?? null,
     campaignId: record.campaignId,
     createdAt: record.createdAt?.toISOString() ?? new Date().toISOString()
   }
@@ -81,6 +82,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (body.charisma !== undefined) data.charisma = body.charisma
   if (body.inventory !== undefined) data.inventory = JSON.stringify(body.inventory)
   if (body.backstory !== undefined) data.backstory = body.backstory
+  if (body.prologue !== undefined) data.prologue = body.prologue
 
   if (body.campaignId !== undefined) {
     if (body.campaignId === null) {

@@ -10,6 +10,8 @@ type Props = {
   onToggleReady: (ready: boolean) => void
   onStartCampaign: () => void
   isStarting: boolean
+  onGeneratePrologue?: () => void
+  hasPrologue?: boolean
 }
 
 export default function WaitingRoomPanel({
@@ -20,6 +22,8 @@ export default function WaitingRoomPanel({
   onToggleReady,
   onStartCampaign,
   isStarting,
+  onGeneratePrologue,
+  hasPrologue,
 }: Props) {
   const myPlayer = players.find(p => p.playerId === myPlayerId)
   const amReady = myPlayer?.ready ?? false
@@ -83,6 +87,16 @@ export default function WaitingRoomPanel({
         }
         .waiting-start-btn:disabled { opacity: 0.35; cursor: not-allowed; }
         .waiting-toggle-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .prologue-gen-btn {
+          padding: 0.42rem 1rem;
+          background: rgba(79,70,229,0.06);
+          border: 1px solid rgba(79,70,229,0.2); border-radius: 4px;
+          color: rgba(180,160,240,0.7); font-size: 0.7rem; font-family: Cinzel, serif; letter-spacing: 0.08em;
+          cursor: pointer; transition: all 0.2s;
+        }
+        .prologue-gen-btn:hover { background: rgba(79,70,229,0.12); border-color: rgba(79,70,229,0.4); color: rgba(180,160,240,1); }
+        .prologue-gen-btn.has { border-color: rgba(74,222,128,0.2); color: rgba(74,222,128,0.6); background: rgba(74,222,128,0.05); }
+        .prologue-gen-btn.has:hover { background: rgba(74,222,128,0.1); border-color: rgba(74,222,128,0.4); color: rgba(74,222,128,0.9); }
       `}</style>
 
       {/* Backdrop */}
@@ -178,6 +192,18 @@ export default function WaitingRoomPanel({
               )
             })}
           </div>
+
+          {/* Prologue button for current player with character */}
+          {myPlayer && hasCharacter && onGeneratePrologue && (
+            <div style={{ display:'flex', justifyContent:'center', marginBottom:'0.75rem' }}>
+              <button
+                className={`prologue-gen-btn${hasPrologue ? ' has' : ''}`}
+                onClick={onGeneratePrologue}
+              >
+                {hasPrologue ? '✦ Ver / Regerar prólogo' : '✦ Gerar prólogo do personagem'}
+              </button>
+            </div>
+          )}
 
           {/* Ready toggle for current player */}
           {myPlayer && (

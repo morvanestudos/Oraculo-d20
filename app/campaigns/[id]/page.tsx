@@ -17,6 +17,7 @@ import GuestEntryModal from '../../../components/GuestEntryModal'
 import CharacterPickerModal from '../../../components/CharacterPickerModal'
 import WaitingRoomPanel from '../../../components/WaitingRoomPanel'
 import AccessCodeModal from '../../../components/AccessCodeModal'
+import ProloguePanel from '../../../components/ProloguePanel'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer } from '../../../lib/types'
 
@@ -44,6 +45,11 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   const [isStartingCampaign, setIsStartingCampaign] = useState(false)
   // Access code gate — null = loading | false = blocked | true = granted
   const [accessGranted, setAccessGranted] = useState<boolean | null>(null)
+  // Prologue
+  const [showPrologue, setShowPrologue] = useState(false)
+  const [prologueText, setPrologueText] = useState<string | null>(null)
+  const [prologueLoading, setPrologueLoading] = useState(false)
+  const [prologueRegenCount, setPrologueRegenCount] = useState(0)
 
   // Copy link
   const [copied, setCopied] = useState(false)
@@ -296,6 +302,48 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     }
   }
 
+  async function handleGeneratePrologue(forceRegen = false) {
+    if (!activeCharacter || !campaign) return
+    setShowPrologue(true)
+
+    if (!forceRegen) {
+      const cached = typeof window !== 'undefined'
+        ? window.localStorage.getItem(`characterPrologue-${id}-${activeCharacter.id}`)
+        : null
+      if (cached) {
+        setPrologueText(cached)
+        setPrologueLoading(false)
+        return
+      }
+    }
+
+    setPrologueLoading(true)
+    setPrologueText(null)
+    try {
+      const res = await fetch(`/api/campaigns/${id}/prologue`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: activeCharacter.id,
+          character: activeCharacter,
+          campaign,
+        }),
+      })
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      const { prologue } = await res.json()
+      setPrologueText(prologue)
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(`characterPrologue-${id}-${activeCharacter.id}`, prologue)
+      }
+      setPrologueRegenCount(c => c + 1)
+    } catch (error) {
+      console.error('Erro ao gerar prólogo:', error)
+      setPrologueText('Não foi possível gerar o prólogo. Tente novamente.')
+    } finally {
+      setPrologueLoading(false)
+    }
+  }
+
   // ── Campaign load ───────────────────────────────────────────────
   useEffect(() => {
     const localActiveCharacter = getActiveCharacter()
@@ -396,6 +444,23 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
           onToggleReady={handleToggleReady}
           onStartCampaign={handleStartCampaign}
           isStarting={isStartingCampaign}
+          onGeneratePrologue={() => handleGeneratePrologue(false)}
+          hasPrologue={
+            typeof window !== 'undefined' && activeCharacter != null &&
+            window.localStorage.getItem(`characterPrologue-${id}-${activeCharacter.id}`) != null
+          }
+        />
+      )}
+
+      {/* Prologue panel */}
+      {showPrologue && (
+        <ProloguePanel
+          text={prologueText}
+          loading={prologueLoading}
+          characterName={activeCharacter?.name}
+          regenCount={prologueRegenCount}
+          onAccept={() => setShowPrologue(false)}
+          onRegenerate={() => handleGeneratePrologue(true)}
         />
       )}
 

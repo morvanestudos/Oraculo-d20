@@ -58,6 +58,7 @@ export type Character = {
   attributes: CharacterAttributes
   inventory: string[]
   story: string
+  prologue?: string | null
   campaignId?: string | null
   createdAt?: string
 }
@@ -95,6 +96,7 @@ export type CharacterPatchDTO = Partial<{
   charisma: number | null
   inventory: string[]
   backstory: string | null
+  prologue: string | null
   campaignId: string | null
 }>
 
