@@ -134,6 +134,75 @@ Toda decisão importa e cria efeitos reais:
 
 O mundo não espera. Se o jogador não age, o mundo age sem ele.
 
+━━ MOTOR DE AVANÇO NARRATIVO — REGRA ANTI-TRAVAMENTO ━━
+A campanha NUNCA pode ficar parada. Se o jogador está perdido, o mundo age primeiro.
+
+SINAIS DE TRAVAMENTO (detecte qualquer um):
+  • Jogador diz: "não sei", "o que faço?", "fico parado", "olho ao redor", "espero"
+  • Ação vaga sem objetivo claro repetida mais de uma vez
+  • Nenhuma pista nova nas últimas rodadas
+  • currentObjective genérico ("Investigar", "Explorar", "Continuar")
+
+QUANDO DETECTAR TRAVAMENTO — faça OBRIGATORIAMENTE uma destas ações:
+  A) Um NPC interrompe a cena com informação ou perigo novo
+  B) Uma pista parcial surge no ambiente (símbolo, som, rastro, objeto)
+  C) Um evento de mundo acontece sem aviso (sino, grito, desaparecimento)
+  D) Uma ameaça se aproxima forçando decisão imediata
+  E) O ambiente muda (tocha apaga, chuva para, corvos chegam)
+
+EXEMPLO DE RESPOSTA A "não sei o que fazer":
+  "O silêncio pesa. Então Arvik, o taverneiro, derruba um copo ao ouvir um som vindo da porta dos fundos. A madeira está marcada com o mesmo símbolo dos relatos dos desaparecidos. Três caminhos surgem agora."
+  → suggestedActions: ["Pressionar Arvik sobre o símbolo", "Examinar a porta dos fundos", "Sair pela chuva e seguir as pegadas na lama", "Descrever minha própria ação"]
+
+REGRA: Nunca responda a ação vaga com apenas descrição de cenário.
+Sempre adicione: um elemento novo + uma decisão necessária.
+
+━━ QUALIDADE DO OBJETIVO ATUAL ━━
+currentObjective DEVE ser específico e acionável. Exemplos:
+  ✓ "Descobrir por que Arvik teme a floresta"
+  ✓ "Encontrar a trilha usada pelos desaparecidos"
+  ✓ "Investigar o símbolo na porta dos fundos"
+  ✗ "Investigar" (genérico demais)
+  ✗ "Explorar" (não indica onde nem o quê)
+  ✗ "Continuar aventura" (inútil)
+
+━━ SISTEMA DE PISTAS ACIONÁVEIS ━━
+Toda pista deve apontar para uma ação possível:
+  • Símbolo na parede → "quem o fez e quando?"
+  • Nome sussurrado → "quem é essa pessoa?"
+  • Rastros na lama → "para onde levam?"
+  • NPC contradiz a si mesmo → "o que está escondendo?"
+  • Som atrás da parede → "o que está do outro lado?"
+Cada pista deve aparecer em discoveredClues com descrição específica.
+
+━━ EVENTOS DE MUNDO VIVO ━━
+A cada cena sem progresso claro, introduza um evento inesperado:
+  • "Um sino toca fora de hora — três badaladas, quando deveria ser duas."
+  • "Alguém grita na rua. Uma única palavra: 'Ele voltou!'"
+  • "A cadeira do canto onde um homem bebia está vazia. Ele sumiu sem fazer barulho."
+  • "Todos os corvos no telhado levantam voo ao mesmo tempo."
+  • "A chuva para de repente. O silêncio é mais pesado que o barulho."
+  • "Uma criança encharcada abre a porta e aponta para a floresta: 'Não entrem lá esta noite.'"
+Eventos criam urgência sem forçar escolha.
+
+━━ CONTROLE DE RITMO NARRATIVO ━━
+A campanha deve alternar entre:
+  INVESTIGAÇÃO → INTERAÇÃO SOCIAL → EXPLORAÇÃO → PERIGO → REVELAÇÃO
+Se ficar muito tempo em um modo, mude o ritmo:
+  • Muito silêncio? → Um NPC age por conta própria
+  • Muita conversa? → Algo ameaçador interrompe
+  • Muita exploração? → Uma pista exige decisão imediata
+  • Muito perigo? → Um momento de alívio tático ou abrigo seguro
+
+━━ SUGESTÕES DE AÇÃO ÚTEIS ━━
+suggestedActions NUNCA deve conter opções vagas. Proibido:
+  ✗ "continuar"  ✗ "olhar ao redor"  ✗ "esperar"  ✗ "explorar"
+Exigido: ações específicas com verbo + alvo + contexto:
+  ✓ "Perguntar a Arvik sobre a marca na porta"
+  ✓ "Seguir as pegadas na lama até a floresta"
+  ✓ "Examinar o símbolo na parede dos fundos"
+  ✓ "Convencer o viajante bêbado a falar"
+
 ━━ ESTRUTURA DE CAMPANHA (ATOS) ━━
 Ato 1 — Chegada e mistério: ambiente opressivo, NPCs estranhos, primeiro sinal do perigo
 Ato 2 — Investigação e pistas: conexões, contradições, NPC aliado e NPC traiçoeiro
@@ -358,6 +427,51 @@ function classNarrativeHook(className: string): string {
   return CLASS_NARRATIVE_HOOKS[key] ?? ''
 }
 
+// ─── Stall detector ───────────────────────────────────────────────────────────
+
+const STALL_PHRASES = /não sei|o que faço|o que fazer|fico parado|olho ao redor|espero aqui|não faço nada|me perco|estou perdido|não entendo|continuo esperando/i
+const VAGUE_ACTIONS = /^(ok|sim|não|continuar?|explorar?|andar?|seguir?|olho|espero|aguardo|fico|vejo|observo\.?|olho\.?)$/i
+const GENERIC_OBJECTIVES = /^(investigar|explorar|continuar|avançar|descobrir|procurar)\.?$/i
+
+type StallResult = { stalled: boolean; reason: string }
+
+function detectStall(request: AIMasterRequest): StallResult {
+  const msg = request.playerMessage.trim()
+
+  // Direct stall phrase
+  if (STALL_PHRASES.test(msg)) {
+    return { stalled: true, reason: `jogador expressou desorientação: "${msg.slice(0, 60)}"` }
+  }
+
+  // Very short vague action
+  if (VAGUE_ACTIONS.test(msg)) {
+    return { stalled: true, reason: `ação genérica sem direção: "${msg}"` }
+  }
+
+  // Generic objective stuck
+  const objective = (request.campaignMemory?.currentObjective ?? '').trim()
+  if (objective && GENERIC_OBJECTIVES.test(objective)) {
+    return { stalled: true, reason: `objetivo atual é genérico: "${objective}"` }
+  }
+
+  // Last 3 player messages are all short (≤ 15 chars) — player spinning
+  const recentPlayer = request.recentMessages
+    .filter(m => m.role === 'player')
+    .slice(-3)
+  if (recentPlayer.length >= 3 && recentPlayer.every(m => m.content.trim().length <= 20)) {
+    return { stalled: true, reason: 'últimas 3 ações do jogador foram curtas e vagas' }
+  }
+
+  // No clues discovered and turn count > 4
+  const turnCount = request.campaignMemory?.turnCount ?? 0
+  const clues = request.campaignMemory?.discoveredClues ?? []
+  if (turnCount > 4 && clues.length === 0) {
+    return { stalled: true, reason: `${turnCount} rodadas sem pistas descobertas` }
+  }
+
+  return { stalled: false, reason: '' }
+}
+
 function buildAIMasterPrompt(request: AIMasterRequest): string {
   const mem = request.campaignMemory
   const char = request.activeCharacter
@@ -442,9 +556,25 @@ function buildAIMasterPrompt(request: AIMasterRequest): string {
       ].join('\n')
     : ''
 
+  // ── Stall detection ──
+  const stallSignals = detectStall(request)
+  const worldEventDue = (mem?.turnCount ?? 0) > 0 && (mem?.turnCount ?? 0) % 5 === 0
+
   // ── Instrução de foco dinâmica ──
   let focusInstruction = ''
-  if (tension >= 8) {
+  if (stallSignals.stalled) {
+    focusInstruction = [
+      '🚨 ALERTA: MOTOR DE AVANÇO ATIVADO',
+      `Sinal detectado: ${stallSignals.reason}`,
+      'A campanha travou. Você DEVE agir agora:',
+      '1. Introduza UM evento novo (NPC age, barulho, objeto, pista parcial)',
+      '2. Ofereça 3-5 caminhos específicos em suggestedActions',
+      '3. Atualize currentObjective com algo específico e acionável',
+      '4. Nunca repita o estado atual — mude algo no mundo',
+    ].join('\n')
+  } else if (worldEventDue && (mem?.discoveredClues?.length ?? 0) === 0) {
+    focusInstruction = '🌍 EVENTO DE MUNDO: Nenhuma pista descoberta ainda. Introduza um evento inesperado que empurre a narrativa — algo que acontece independente da ação do jogador.'
+  } else if (tension >= 8) {
     focusInstruction = '⚡ FOCO: Tensão máxima — narração urgente, frases curtas, cada palavra pesa. Não suavize o perigo.'
   } else if (tension >= 5) {
     focusInstruction = '⚠️ FOCO: Perigo iminente — descreva sinais concretos da ameaça. Crie pressão de tempo ou escolha difícil.'
@@ -482,7 +612,7 @@ ${actingPlayerName ? `[${actingPlayerName}] ` : ''}${request.playerMessage}
 ━━ INSTRUÇÃO DE FOCO ━━
 ${focusInstruction}
 Lembre-se: responda direcionado a ${char?.name ?? 'o personagem que agiu'}, não ao grupo todo.
-
+${stallSignals.stalled ? '\n⚠️ ATENÇÃO: suggestedActions deve ter 3-5 opções ESPECÍFICAS com verbo+alvo. Não use opções vagas. Atualize currentObjective com algo concreto.' : ''}
 Responda APENAS com JSON válido.`
 }
 
