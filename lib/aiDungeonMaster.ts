@@ -439,6 +439,33 @@ NÃO RESOLVA SEM DADO:
   ✗ Nunca narre resultado de combate sem Ataque
   ✗ Nunca confirme sucesso de furtividade sem Destreza
 
+REGRA ABSOLUTA QUANDO requiresRoll=true:
+Você deve PARAR a narrativa e aguardar o dado.
+Não diga se acertou, errou, desviou, encontrou, convenceu, intimidou, abriu ou decifrou.
+Você pode apenas:
+• descrever a tentativa antes do resultado
+• explicar o risco
+• informar CD
+• pedir rolagem
+• listar consequência de sucesso, sucesso excepcional e falha como possibilidades, sem afirmar que aconteceram
+
+Ataque sempre exige: rolagem de ataque → resultado → rolagem/dano pelo sistema → resultado.
+Investigação sempre exige: teste → resultado → revelação.
+Persuasão/intimidação sempre exige: teste → resultado → reação do NPC.
+
+Exemplo correto:
+"O cultista ergue a runa para se defender.
+
+⚔️ Faça uma rolagem de Ataque.
+CD: 14
+
+Sucesso: você atinge o cultista.
+Sucesso excepcional: você o desarma.
+Falha: o cultista evita o golpe.
+
+Role o dado."
+FIM DA RESPOSTA.
+
 REGRA DE OURO: Se você está prestes a revelar informação, narrar consequência de combate
 ou confirmar sucesso de ação arriscada — PARE. Peça o dado primeiro.
 
@@ -698,6 +725,94 @@ function extractRecentRoll(messages: AIMasterRequest['recentMessages']): string 
     outcome ? `Resultado informado: ${outcome}` : '',
     'Se foi sucesso alto/crítico, entregue pista específica, rota, NPC, item ou progresso imediato.',
   ].filter(Boolean).join('\n')
+}
+
+const PRE_ROLL_RESOLUTION_WORDS = /\b(acertou|acerta|atinge|atingiu|falhou|errou|desviou|desvia|encontrou|encontra|convenceu|convence|intimidou|intimida|abriu|abre|decifrou|decifra)\b/i
+
+function rollLabel(rollType: AIMasterResponse['rollType']) {
+  const labels: Record<string, string> = {
+    ataque: 'Ataque',
+    investigacao: 'Investigação',
+    percepcao: 'Percepção',
+    carisma: 'Carisma',
+    destreza: 'Destreza',
+    forca: 'Força',
+    arcano: 'Arcano',
+    sabedoria: 'Sabedoria',
+    cura: 'Cura',
+    geral: 'Geral',
+  }
+  return labels[rollType] ?? 'Geral'
+}
+
+function buildSafeRollRequestNarration(request: AIMasterRequest, rollType: AIMasterResponse['rollType'], difficultyClass: number | null) {
+  const actor = request.activeCharacter?.name ?? 'Você'
+  const dc = difficultyClass ?? 14
+  const label = rollLabel(rollType)
+
+  if (rollType === 'ataque') {
+    return [
+      `${actor} inicia o ataque, mas o resultado ainda depende do dado.`,
+      '',
+      `⚔️ Faça uma rolagem de ${label}.`,
+      `CD: ${dc}`,
+      '',
+      'Sucesso: você atinge o alvo.',
+      'Sucesso excepcional: você ganha uma vantagem imediata no confronto.',
+      'Falha: o alvo evita o golpe ou força uma abertura perigosa.',
+      '',
+      'Role o dado.',
+    ].join('\n')
+  }
+
+  if (rollType === 'investigacao' || rollType === 'percepcao' || rollType === 'arcano' || rollType === 'sabedoria') {
+    return [
+      `${actor} se concentra na pista, mas a verdade ainda não está confirmada.`,
+      '',
+      `🔍 Faça uma rolagem de ${label}.`,
+      `CD: ${dc}`,
+      '',
+      'Sucesso: você obtém uma pista concreta.',
+      'Sucesso excepcional: você revela uma conexão importante ou um novo caminho.',
+      'Falha: você avança com custo, dúvida ou perigo.',
+      '',
+      'Role o dado.',
+    ].join('\n')
+  }
+
+  if (rollType === 'carisma') {
+    return [
+      `${actor} pressiona a conversa, mas a reação do NPC ainda depende do teste.`,
+      '',
+      `💬 Faça uma rolagem de ${label}.`,
+      `CD: ${dc}`,
+      '',
+      'Sucesso: o NPC cede algo útil.',
+      'Sucesso excepcional: o NPC revela mais do que pretendia.',
+      'Falha: o NPC resiste, desconfia ou impõe um custo.',
+      '',
+      'Role o dado.',
+    ].join('\n')
+  }
+
+  return [
+    `${actor} tenta agir, mas o resultado ainda depende do dado.`,
+    '',
+    `🎲 Faça uma rolagem de ${label}.`,
+    `CD: ${dc}`,
+    '',
+    'Sucesso: a ação produz avanço concreto.',
+    'Sucesso excepcional: você ganha vantagem adicional.',
+    'Falha: a ação tem custo ou complicação.',
+    '',
+    'Role o dado.',
+  ].join('\n')
+}
+
+function sanitizeRollRequestNarration(request: AIMasterRequest, response: Pick<AIMasterResponse, 'narration' | 'requiresRoll' | 'rollType' | 'difficultyClass'>) {
+  if (!response.requiresRoll || response.rollType === 'nenhum') return response.narration
+  if (!PRE_ROLL_RESOLUTION_WORDS.test(response.narration)) return response.narration
+  return buildSafeRollRequestNarration(request, response.rollType, response.difficultyClass)
 }
 
 function buildAIMasterPrompt(request: AIMasterRequest): string {
@@ -965,11 +1080,19 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
       }
     : undefined
 
-  return {
-    narration:      String(parsed.narration || '').trim(),
-    requiresRoll:   Boolean(parsed.requiresRoll),
-    rollType:       parsed.rollType || 'nenhum',
+  const responseCore = {
+    narration: String(parsed.narration || '').trim(),
+    requiresRoll: Boolean(parsed.requiresRoll),
+    rollType: (parsed.rollType || 'nenhum') as AIMasterResponse['rollType'],
     difficultyClass: parsed.difficultyClass ?? null,
+  }
+  responseCore.narration = sanitizeRollRequestNarration(request, responseCore)
+
+  return {
+    narration:      responseCore.narration,
+    requiresRoll:   responseCore.requiresRoll,
+    rollType:       responseCore.rollType,
+    difficultyClass: responseCore.difficultyClass,
     suggestedActions,
     questsUpdates,
     npcUpdates,

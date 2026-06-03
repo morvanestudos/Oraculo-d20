@@ -49,6 +49,16 @@ const TAVERNA_NPCS: Omit<Npc, 'id' | 'campaignId' | 'active'>[] = [
   },
 ]
 
+const GENERIC_INITIAL_NPC: Omit<Npc, 'id' | 'campaignId' | 'active'> = {
+  name: 'Viajante Misterioso',
+  role: 'Desconhecido',
+  mood: 'observador',
+  trust: 0,
+  fear: 1,
+  knownInfo: 'Parece saber mais sobre a região do que revela.',
+  secrets: 'Carrega uma pista ligada ao conflito principal da campanha.',
+}
+
 // ── Mood styles ───────────────────────────────────────────────────────────────
 
 const MOOD_STYLE: Record<string, { color: string; bg: string }> = {
@@ -150,6 +160,7 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
   const [npcs, setNpcs] = useState<Npc[]>([])
   const [loading, setLoading] = useState(true)
   const [seeded, setSeeded] = useState(false)
+  const [creatingInitialNpc, setCreatingInitialNpc] = useState(false)
 
   const isTaverna = (campaignTitle ?? '').toLowerCase().includes('taverna')
 
@@ -177,6 +188,20 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
 
   useEffect(() => { fetchNpcs() }, [fetchNpcs])
 
+  async function createInitialNpc() {
+    if (creatingInitialNpc) return
+    setCreatingInitialNpc(true)
+    try {
+      const r = await fetch(`/api/campaigns/${campaignId}/npcs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ npcs: [GENERIC_INITIAL_NPC] }),
+      })
+      if (r.ok) setNpcs(await r.json())
+    } catch { /* silent */ }
+    setCreatingInitialNpc(false)
+  }
+
   // Real-time updates
   useEffect(() => {
     const pusher = createPusherClient()
@@ -192,8 +217,6 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
     return () => { channel.unbind('npcs-updated'); pusher.unsubscribe(`campaign-${campaignId}`) }
   }, [campaignId])
 
-  if (!loading && npcs.length === 0) return null
-
   return (
     <div style={{
       background: 'linear-gradient(175deg, rgba(20,12,4,0.98), rgba(10,6,2,0.96))',
@@ -203,7 +226,7 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
       <div style={{ padding: '0.7rem 0.9rem 0.55rem', borderBottom: '1px solid rgba(212,177,106,0.1)', background: 'rgba(22,13,4,0.98)', display: 'flex', alignItems: 'center', gap: 7 }}>
         <span style={{ fontSize: '0.8rem' }}>🧑‍🤝‍🧑</span>
         <span style={{ fontFamily: 'Cinzel, serif', fontSize: '0.65rem', fontWeight: 700, color: '#c4a870', textTransform: 'uppercase', letterSpacing: '0.18em' }}>
-          Personagens Conhecidos
+          NPCs Conhecidos
         </span>
         {!loading && (
           <span style={{ marginLeft: 'auto', fontSize: '0.55rem', background: 'rgba(212,177,106,0.08)', border: '1px solid rgba(212,177,106,0.16)', borderRadius: 10, padding: '1px 5px', color: 'rgba(212,177,106,0.5)' }}>
@@ -214,6 +237,41 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
       <div style={{ padding: '0.7rem 0.75rem' }}>
         {loading ? (
           <p style={{ color: '#5a4820', fontSize: '0.7rem', fontStyle: 'italic', margin: 0 }}>Consultando registros...</p>
+        ) : npcs.length === 0 ? (
+          <div style={{
+            padding: '0.8rem 0.75rem',
+            background: 'rgba(212,177,106,0.025)',
+            border: '1px dashed rgba(212,177,106,0.14)',
+            borderRadius: 5,
+          }}>
+            <div style={{ fontFamily: 'Cinzel, serif', fontSize: '0.78rem', fontWeight: 700, color: '#d4b16a', marginBottom: 5 }}>
+              Nenhum NPC foi encontrado nesta campanha ainda.
+            </div>
+            <p style={{ color: '#7a6040', fontSize: '0.68rem', lineHeight: 1.5, margin: '0 0 0.75rem', fontFamily: 'Georgia, serif', fontStyle: 'italic' }}>
+              Converse com moradores, inimigos ou viajantes para que o Mestre registre novos personagens importantes.
+            </p>
+            <button
+              type="button"
+              onClick={createInitialNpc}
+              disabled={creatingInitialNpc}
+              style={{
+                width: '100%',
+                padding: '0.48rem 0.65rem',
+                background: creatingInitialNpc ? 'rgba(212,177,106,0.06)' : 'rgba(212,177,106,0.1)',
+                border: '1px solid rgba(212,177,106,0.24)',
+                borderRadius: 4,
+                color: '#c8a85a',
+                fontSize: '0.62rem',
+                fontFamily: 'Cinzel, serif',
+                fontWeight: 700,
+                letterSpacing: '0.12em',
+                textTransform: 'uppercase',
+                cursor: creatingInitialNpc ? 'wait' : 'pointer',
+              }}
+            >
+              {creatingInitialNpc ? 'Registrando...' : 'Gerar NPC inicial'}
+            </button>
+          </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {npcs.map(npc => <NpcCard key={npc.id} npc={npc} />)}
