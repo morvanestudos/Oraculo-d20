@@ -13,20 +13,33 @@ model User {
 }
 
 model Campaign {
-  id             Int               @id @default(autoincrement())
+  id             Int                 @id @default(autoincrement())
   title          String
   description    String?
   theme          String?
   level          Int?
   maxPlayers     Int?
   accessCode     String?
-  createdAt      DateTime          @default(now())
+  createdAt      DateTime            @default(now())
   characters     Character[]
   messages       Message[]
   combatState    CombatState?
   memory         CampaignMemory?
   quests         Quest[]
   campaignPlayers CampaignPlayer[]
+  turnState      CampaignTurnState?
+}
+
+model CampaignTurnState {
+  id               Int      @id @default(autoincrement())
+  campaignId       Int      @unique
+  active           Boolean  @default(false)
+  round            Int      @default(1)
+  currentTurnIndex Int      @default(0)
+  turnOrder        Json     @default("[]")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  campaign         Campaign @relation(fields: [campaignId], references: [id])
 }
 
 model CampaignPlayer {

@@ -8,6 +8,8 @@ import type { CombatState, Message, PendingTest } from '../lib/types'
 
 type DiceRollerProps = {
   campaignId: string
+  isMyTurn?: boolean   // undefined = free mode (turns inactive)
+  currentActorName?: string | null
 }
 
 // Human-readable labels for each roll type
@@ -24,10 +26,11 @@ const ROLL_LABELS: Record<string, string> = {
   geral:       'Geral',
 }
 
-export default function DiceRoller({ campaignId }: DiceRollerProps) {
+export default function DiceRoller({ campaignId, isMyTurn = true, currentActorName }: DiceRollerProps) {
   const [last, setLast]         = useState<number | null>(null)
   const [rolling, setRolling]   = useState(false)
   const [pending, setPending]   = useState<PendingTest | null>(null)
+  const blocked = isMyTurn === false   // turns active and not my turn
 
   // Poll localStorage every second so the badge appears as soon as ChatBox saves a pendingTest
   useEffect(() => {
@@ -38,7 +41,7 @@ export default function DiceRoller({ campaignId }: DiceRollerProps) {
   }, [campaignId])
 
   async function roll() {
-    if (rolling) return
+    if (rolling || blocked) return
     setRolling(true)
     const v = Math.floor(Math.random() * 20) + 1
 
@@ -152,8 +155,24 @@ export default function DiceRoller({ campaignId }: DiceRollerProps) {
 
   return (
     <div className="flex flex-col items-center gap-2">
+      {/* Blocked by turns notice */}
+      {blocked && (
+        <div
+          className="text-xs px-3 py-1.5 rounded-lg text-center"
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: 'rgba(255,255,255,0.35)',
+            minWidth: '120px',
+          }}
+        >
+          <div style={{ fontSize: '0.55rem', opacity: 0.6, marginBottom: 1 }}>Aguardando turno</div>
+          <div>{currentActorName ?? 'outro jogador'}</div>
+        </div>
+      )}
+
       {/* Pending test badge */}
-      {pending && (
+      {!blocked && pending && (
         <div
           className="text-xs px-3 py-1.5 rounded-lg text-center animate-pulse"
           style={{
@@ -175,8 +194,8 @@ export default function DiceRoller({ campaignId }: DiceRollerProps) {
       <D20DiceCss
         result={last}
         rolling={rolling}
-        onRoll={roll}
-        highlight={!!pending}
+        onRoll={blocked ? undefined : roll}
+        highlight={!blocked && !!pending}
       />
     </div>
   )

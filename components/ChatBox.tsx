@@ -6,7 +6,7 @@ import { fetchCampaignMemory, updateCampaignMemory, initializeCampaignMemory } f
 import { createPusherClient } from '../lib/pusher-client'
 import { analyzeAction, generateTestOutcomeMessage } from '../lib/masterEngine'
 import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrateAction, buildMasterMessage, buildMemorySummary } from '../lib/narrativeEngine'
-import type { Message, Campaign, Character, CampaignPlayer, PendingTest, CampaignMemory, AIMasterResponse, PartyMember } from '../lib/types'
+import type { Message, Campaign, Character, CampaignPlayer, PendingTest, CampaignMemory, AIMasterResponse, PartyMember, TurnState } from '../lib/types'
 import { fetchQuests, processQuestUpdates } from '../lib/api/quests'
 import { awardCharacterXp } from '../lib/api/characters'
 import { getCampaignActs, detectCampaignAct } from '../lib/campaignActs'
@@ -21,9 +21,10 @@ type ChatBoxProps = {
   playerName: string
   onlinePlayers?: CampaignPlayer[]
   campaignCharacters?: Character[]
+  turnState?: TurnState | null
 }
 
-export default function ChatBox({ campaignId, campaign, character, playerName, onlinePlayers = [], campaignCharacters = [] }: ChatBoxProps) {
+export default function ChatBox({ campaignId, campaign, character, playerName, onlinePlayers = [], campaignCharacters = [], turnState }: ChatBoxProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
   const [isMasterTyping, setIsMasterTyping] = useState(false)
@@ -32,6 +33,12 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
   const [suggestedActionsMessageId, setSuggestedActionsMessageId] = useState<string | null>(null)
   const [showIntro, setShowIntro] = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+
+  // Turn state — computed from prop
+  const myPlayerId = getPlayerId()
+  const turnActive = turnState?.active ?? false
+  const currentActor = turnActive ? (turnState!.turnOrder[turnState!.currentTurnIndex] ?? null) : null
+  const isMyTurn = !turnActive || (currentActor?.playerId === myPlayerId)
 
   useEffect(() => {
     let pusher: ReturnType<typeof createPusherClient> | null = null
@@ -575,6 +582,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
 
   async function send() {
     if (!text.trim()) return
+    if (turnActive && !isMyTurn) return  // Block action outside turn
     const content = text.trim()
     setText('')
     setSuggestedActions([])
@@ -673,9 +681,31 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
         {isMasterTyping && (
           <div className="chat-message-master text-sm">O Mestre está narrando...</div>
         )}
-        <div className="chat-input">
-          <input value={text} onChange={e => setText(e.target.value)} placeholder="Mensagem" onKeyDown={e => e.key === 'Enter' && send()} />
-          <button onClick={send}>Enviar</button>
+
+        {/* Turn blocker notice */}
+        {turnActive && !isMyTurn && currentActor && (
+          <div
+            className="text-xs text-center py-2 rounded-lg"
+            style={{
+              background: 'rgba(255,255,255,0.03)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              color: 'rgba(255,255,255,0.4)',
+            }}
+          >
+            Aguarde sua vez. Agora é o turno de <strong style={{ color: 'rgba(212,177,106,0.8)' }}>{currentActor.characterName}</strong>.
+          </div>
+        )}
+
+        <div className="chat-input" style={{ opacity: (!isMyTurn && turnActive) ? 0.4 : 1 }}>
+          <input
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder={(!isMyTurn && turnActive) ? `Aguardando ${currentActor?.characterName ?? '...'}` : 'Mensagem'}
+            onKeyDown={e => e.key === 'Enter' && isMyTurn && send()}
+            disabled={!isMyTurn && turnActive}
+            style={{ cursor: (!isMyTurn && turnActive) ? 'not-allowed' : undefined }}
+          />
+          <button onClick={send} disabled={(!isMyTurn && turnActive) || isMasterTyping}>Enviar</button>
         </div>
       </div>
     </div>

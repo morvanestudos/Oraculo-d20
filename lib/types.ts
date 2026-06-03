@@ -422,6 +422,25 @@ export type CombatLog = {
   createdAt: string
 }
 
+export type TurnEntry = {
+  playerId: string
+  playerName: string
+  characterId: number
+  characterName: string
+  initiative: number
+  hasActed: boolean
+}
+
+export type TurnState = {
+  id: string
+  campaignId: string
+  active: boolean
+  round: number
+  currentTurnIndex: number
+  turnOrder: TurnEntry[]
+  updatedAt?: string
+}
+
 export type CombatState = {
   id: string
   campaignId: string

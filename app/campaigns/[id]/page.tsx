@@ -22,8 +22,9 @@ import WorldStatusPanel from '../../../components/WorldStatusPanel'
 import NpcPanel from '../../../components/NpcPanel'
 import ValdrakMap from '../../../components/ValdrakMap'
 import CampaignActsPanel from '../../../components/CampaignActsPanel'
+import TurnOrderPanel from '../../../components/TurnOrderPanel'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
-import type { Campaign, Character, CampaignPlayer } from '../../../lib/types'
+import type { Campaign, Character, CampaignPlayer, TurnState } from '../../../lib/types'
 
 export default function CampaignRoom({ params }: { params: { id: string } }) {
   const id = params.id
@@ -54,6 +55,9 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
   const [prologueText, setPrologueText] = useState<string | null>(null)
   const [prologueLoading, setPrologueLoading] = useState(false)
   const [prologueRegenCount, setPrologueRegenCount] = useState(0)
+
+  // Turn state — updated by TurnOrderPanel callback + Pusher
+  const [turnState, setTurnState] = useState<TurnState | null>(null)
 
   // Copy link
   const [copied, setCopied] = useState(false)
@@ -566,6 +570,7 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                       playerName={playerName ?? 'Aventureiro'}
                       onlinePlayers={onlinePlayers}
                       campaignCharacters={campaignCharacters}
+                      turnState={turnState}
                     />
                   )}
                 </div>
@@ -576,9 +581,19 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                       <h4 className="font-semibold">Mestre IA</h4>
                       <div className="text-xs text-muted">Painel de controle</div>
                     </div>
-                    {campaign && characterLinked !== false && campaignStarted === true && (
-                      <DiceRoller campaignId={campaign.id} />
-                    )}
+                    {campaign && characterLinked !== false && campaignStarted === true && (() => {
+                      const myPid = getPlayerId()
+                      const turnActive = turnState?.active ?? false
+                      const currentActor = turnActive ? (turnState!.turnOrder[turnState!.currentTurnIndex] ?? null) : null
+                      const isMyTurn = !turnActive || currentActor?.playerId === myPid
+                      return (
+                        <DiceRoller
+                          campaignId={campaign.id}
+                          isMyTurn={isMyTurn}
+                          currentActorName={!isMyTurn ? currentActor?.characterName : null}
+                        />
+                      )
+                    })()}
                   </div>
                   <div className="text-sm text-muted">Logs de cena e sugestões do Mestre IA aparecerão aqui.</div>
                 </div>
@@ -602,6 +617,12 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
               <div className="panel glass p-4 rounded-lg">
                 <QuestLog campaignId={campaign.id} />
               </div>
+
+              {/* Turn Order */}
+              <TurnOrderPanel
+                campaignId={campaign.id}
+                onTurnStateChange={setTurnState}
+              />
 
               {/* Campaign Acts */}
               <CampaignActsPanel
