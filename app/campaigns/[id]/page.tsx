@@ -24,6 +24,7 @@ import ValdrakMap from '../../../components/ValdrakMap'
 // import CampaignActsPanel from '../../../components/CampaignActsPanel'  // DESATIVADO temporariamente
 import TurnOrderPanel from '../../../components/TurnOrderPanel'
 import CombatPanel from '../../../components/CombatPanel'
+import MobileGameHud, { type MobilePanel } from '../../../components/MobileGameHud'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer, TurnState } from '../../../lib/types'
 
@@ -59,6 +60,9 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
 
   // Turn state — updated by TurnOrderPanel callback + Pusher
   const [turnState, setTurnState] = useState<TurnState | null>(null)
+
+  // Mobile HUD active panel
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('chat')
 
   // Sync activeCharacter HP when DiceRoller updates it via custom event
   useEffect(() => {

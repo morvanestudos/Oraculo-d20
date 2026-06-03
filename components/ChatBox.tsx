@@ -5,6 +5,7 @@ import { createMessage } from '../lib/api/messages'
 import { fetchCampaignMemory, updateCampaignMemory, initializeCampaignMemory } from '../lib/api/campaigns'
 import { createPusherClient } from '../lib/pusher-client'
 import { analyzeAction, generateTestOutcomeMessage } from '../lib/masterEngine'
+import { detectHealingAction, rollHealing, applyHeal, formatHealMessage } from '../lib/healingSystem'
 import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrateAction, buildMasterMessage, buildMemorySummary } from '../lib/narrativeEngine'
 import type { Message, Campaign, Character, CampaignPlayer, PendingTest, CampaignMemory, AIMasterResponse, PartyMember, TurnState } from '../lib/types'
 import { fetchQuests, processQuestUpdates } from '../lib/api/quests'
@@ -193,6 +194,48 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
     } else {
       saveMessage(playerMessage)
     }
+
+    // ── Detect and resolve healing actions ─────────────────────────────────
+    try {
+      const party = campaignCharacters.filter(c => c.id !== character?.id)
+      const healingAction = detectHealingAction(playerMessage.content, character, party)
+
+      if (healingAction.isHealing && character) {
+        const { targetCharacterId, targetCharacterName, diceCount, diceSides, bonus, source } = healingAction
+        const targetChar = [character, ...party].find(c => c.id === targetCharacterId)
+        if (targetChar) {
+          const { rolls, total } = rollHealing(diceCount, diceSides, bonus)
+          const maxHp = Math.max(targetChar.hp, 1)  // use current as floor; ideally stored maxHp
+          const prevHp = targetChar.hp
+          const newHp  = applyHeal(prevHp, total, maxHp + 999)  // allow up to original max
+
+          // Persist via API
+          const campaignIdNum = campaign.id ? Number(campaign.id) : undefined
+          await fetch(`/api/characters/${targetCharacterId}/hp`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hpChange: total, reason: healingAction.reason, campaignId: campaignIdNum }),
+          }).catch(() => {})
+
+          // Update local state
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('oraculo:character-updated', {
+              detail: { characterId: String(targetCharacterId), hp: newHp },
+            }))
+          }
+
+          // Chat message
+          const healMsg = formatHealMessage({
+            healerName: character.name,
+            targetName: targetCharacterName,
+            source, rolls, bonus, totalHealed: total,
+            previousHp: prevHp, newHp, maxHp,
+          })
+          const healMsgCreated = await createMessage(campaignId, { author: 'Sistema', role: 'system', content: healMsg })
+          if (healMsgCreated) saveMessage(healMsgCreated)
+        }
+      }
+    } catch { /* non-fatal */ }
 
     // Detect combat start phrases and create combat state if none exists
     try {
