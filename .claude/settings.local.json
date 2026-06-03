@@ -7,7 +7,10 @@
       "Bash(findstr /i \"database\\\\|direct\\\\|postgres\")",
       "Bash(Get-Content .env)",
       "Bash(Get-Content .env.local)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/login)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/login)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(git stash *)"
     ]
   }
 }

@@ -258,6 +258,30 @@ body::before {
   background: rgba(255,255,255,0.03);
 }
 
+.chat-message-act-milestone {
+  @apply rounded-2xl border text-center px-6 py-5 mx-auto;
+  max-width: 420px;
+  border-color: rgba(212,177,106,0.45);
+  background: radial-gradient(ellipse at center, rgba(212,177,106,0.10) 0%, rgba(6,4,2,0.95) 70%);
+  box-shadow: 0 0 24px rgba(212,177,106,0.15), inset 0 0 12px rgba(212,177,106,0.05);
+}
+
+.chat-message-act-milestone .act-label {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #d4b16a;
+  text-shadow: 0 0 12px rgba(212,177,106,0.5);
+}
+
+.chat-message-act-milestone .act-divider {
+  width: 60px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212,177,106,0.6), transparent);
+  margin: 8px auto 0;
+}
+
 .chat-input {
   @apply flex gap-2 items-center rounded-3xl border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.03)] p-3;
 }

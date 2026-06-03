@@ -3,6 +3,15 @@ import { prisma } from '../../../lib/prisma'
 import pusher from '../../../lib/pusher'
 import type { CharacterCreateDTO } from '../../../lib/types'
 
+function parseAbilities(raw: unknown): unknown[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string') {
+    try { const p = JSON.parse(raw); return Array.isArray(p) ? p : [] } catch { return [] }
+  }
+  return []
+}
+
 function parseInventory(raw: string | null): string[] {
   if (!raw) {
     return []
@@ -26,6 +35,8 @@ function mapCharacter(record: any) {
     name: record.name,
     race: record.race,
     className: record.class,
+    subclass: record.subclass ?? null,
+    abilities: parseAbilities(record.abilities),
     level: record.level ?? 1,
     hp: record.hp ?? 0,
     ac: record.armorClass ?? 0,
@@ -74,6 +85,8 @@ export async function POST(request: Request) {
       name: body.name,
       race: body.race,
       class: body.class ?? '',
+      subclass: body.subclass ?? null,
+      abilities: body.abilities ? body.abilities : undefined,
       level: body.level ?? 1,
       hp: body.hp ?? 0,
       armorClass: body.armorClass ?? 0,

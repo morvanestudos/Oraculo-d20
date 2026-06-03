@@ -63,6 +63,8 @@ model Character {
   name        String
   race        String?
   class       String?
+  subclass    String?
+  abilities   Json?
   level       Int?
   hp          Int?
   armorClass  Int?

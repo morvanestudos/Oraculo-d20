@@ -21,6 +21,7 @@ import ProloguePanel from '../../../components/ProloguePanel'
 import WorldStatusPanel from '../../../components/WorldStatusPanel'
 import NpcPanel from '../../../components/NpcPanel'
 import ValdrakMap from '../../../components/ValdrakMap'
+import CampaignActsPanel from '../../../components/CampaignActsPanel'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer } from '../../../lib/types'
 
@@ -599,6 +600,12 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
               <div className="panel glass p-4 rounded-lg">
                 <QuestLog campaignId={campaign.id} />
               </div>
+
+              {/* Campaign Acts */}
+              <CampaignActsPanel
+                campaignId={campaign.id}
+                campaignTitle={campaign.title}
+              />
 
               {/* Online players */}
               <div className="panel glass p-4 rounded-lg">

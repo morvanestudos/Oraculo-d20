@@ -14,6 +14,8 @@ function parseCharacterApiResponse(data: any): Character {
     name: data.name,
     race: data.race,
     className: data.className ?? data.class ?? '',
+    subclass: data.subclass ?? null,
+    abilities: Array.isArray(data.abilities) ? data.abilities : [],
     level: Number(data.level ?? 1),
     hp: Number(data.hp ?? 0),
     ac: Number(data.ac ?? 0),

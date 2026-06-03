@@ -38,6 +38,14 @@ export type CampaignDTO = {
   hasAccessCode?: boolean
 }
 
+export type CharacterAbility = {
+  id: string
+  name: string
+  description: string
+  type: 'combat' | 'utility' | 'support' | 'magic'
+  usesPerScene?: number
+}
+
 export type CharacterAttributes = {
   str: number
   dex: number
@@ -52,6 +60,8 @@ export type Character = {
   name: string
   race: string
   className: string
+  subclass?: string | null
+  abilities?: CharacterAbility[]
   level: number
   hp: number
   ac: number
@@ -69,6 +79,8 @@ export type CharacterCreateDTO = {
   name: string
   race: string
   class?: string | null
+  subclass?: string | null
+  abilities?: CharacterAbility[]
   level?: number | null
   hp?: number | null
   armorClass?: number | null
@@ -87,6 +99,8 @@ export type CharacterPatchDTO = Partial<{
   name: string
   race: string
   class: string | null
+  subclass: string | null
+  abilities: CharacterAbility[]
   level: number | null
   hp: number | null
   armorClass: number | null

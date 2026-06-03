@@ -3,6 +3,15 @@ import { prisma } from '../../../../lib/prisma'
 import pusher from '../../../../lib/pusher'
 import type { CharacterPatchDTO } from '../../../../lib/types'
 
+function parseAbilities(raw: unknown): unknown[] {
+  if (!raw) return []
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string') {
+    try { const p = JSON.parse(raw); return Array.isArray(p) ? p : [] } catch { return [] }
+  }
+  return []
+}
+
 function parseInventory(raw: string | null): string[] {
   if (!raw) {
     return []
@@ -26,6 +35,8 @@ function mapCharacter(record: any) {
     name: record.name,
     race: record.race,
     className: record.class,
+    subclass: record.subclass ?? null,
+    abilities: parseAbilities(record.abilities),
     level: record.level ?? 1,
     hp: record.hp ?? 0,
     ac: record.armorClass ?? 0,
@@ -73,6 +84,8 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   if (body.name !== undefined) data.name = body.name
   if (body.race !== undefined) data.race = body.race
   if (body.class !== undefined) data.class = body.class
+  if (body.subclass !== undefined) data.subclass = body.subclass
+  if (body.abilities !== undefined) data.abilities = body.abilities as any
   if (body.level !== undefined) data.level = body.level
   if (body.hp !== undefined) data.hp = body.hp
   if (body.armorClass !== undefined) data.armorClass = body.armorClass

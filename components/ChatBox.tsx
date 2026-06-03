@@ -9,6 +9,7 @@ import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrate
 import type { Message, Campaign, Character, PendingTest, CampaignMemory, AIMasterResponse } from '../lib/types'
 import { fetchQuests, processQuestUpdates } from '../lib/api/quests'
 import { awardCharacterXp } from '../lib/api/characters'
+import { getCampaignActs, detectCampaignAct } from '../lib/campaignActs'
 import CombatPanel from './CombatPanel'
 import CampaignIntroPanel from './CampaignIntroPanel'
 
@@ -396,12 +397,37 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
           ...memoryUpdate
         }
 
+        // Detect act progression before and after memory update
+        const prevAct = detectCampaignAct(campaign.title, updatedMemory)
+        const nextAct = detectCampaignAct(campaign.title, newMemoryState)
+
         setCampaignMemory(newMemoryState)
         saveCampaignMemory(newMemoryState)
 
         updateCampaignMemory(campaignId, memoryUpdate).catch(error => {
           console.error('Falha ao atualizar campanha memória:', error)
         })
+
+        // Announce act change — fire-and-forget, no await to not block chat
+        if (nextAct > prevAct) {
+          const acts = getCampaignActs(campaign.title)
+          const newActData = acts.find(a => a.number === nextAct)
+          const announceFlag = newActData?.announceFlag ?? `act_${nextAct}_announced`
+          const alreadyAnnounced = (newMemoryState.storyFlags ?? {})[announceFlag]
+
+          if (!alreadyAnnounced && newActData) {
+            // Save flag to prevent repeat announcements
+            const flagUpdate = { storyFlags: { ...newMemoryState.storyFlags, [announceFlag]: true } }
+            updateCampaignMemory(campaignId, flagUpdate).catch(() => {})
+
+            const actMessage = `⚔️ ${newActData.title} — ${newActData.subtitle}`
+            createMessage(campaignId, {
+              author: 'Sistema',
+              role: 'system',
+              content: actMessage,
+            }).catch(() => {})
+          }
+        }
       }
 
       if (pendingTest) {
@@ -577,6 +603,12 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
       <div className="flex-1 overflow-y-auto p-3 space-y-3 chat-scroll">
         {messages.map(m => (
           <React.Fragment key={m.id}>
+            {m.role === 'system' && m.content.startsWith('⚔️ Ato') ? (
+              <div className="chat-message-act-milestone">
+                <div className="act-label">{m.content}</div>
+                <div className="act-divider" />
+              </div>
+            ) : (
             <div className={m.role === 'master' ? 'chat-message-master' : m.role === 'system' ? 'chat-message-system' : 'chat-message-player'}>
               <div className="flex items-center justify-between text-xs mb-1 uppercase tracking-[0.2em] text-muted">
                 <span>{m.author}</span>
@@ -584,6 +616,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
               </div>
               <div className="text-sm leading-6">{m.content}</div>
             </div>
+            )}
             {m.id === suggestedActionsMessageId && suggestedActions.length > 0 && (
               <div className="flex flex-wrap gap-2 pl-1 pb-1">
                 {suggestedActions.map((action, i) => (

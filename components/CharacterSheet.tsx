@@ -1,5 +1,14 @@
 import React from 'react'
-import type { InventoryItem, ItemRarity, ItemType } from '../lib/types'
+import { getClassByName } from '../lib/characterClasses'
+import type { InventoryItem, ItemRarity, ItemType, CharacterAbility } from '../lib/types'
+
+// ── Ability type styles ───────────────────────────────────────────
+const ABILITY_STYLE: Record<string, { bg: string; border: string; color: string; label: string }> = {
+  combat:  { bg: 'rgba(239,68,68,0.07)',   border: 'rgba(239,68,68,0.22)',   color: '#f87171', label: 'Combate' },
+  magic:   { bg: 'rgba(167,139,250,0.07)', border: 'rgba(167,139,250,0.25)', color: '#a78bfa', label: 'Magia' },
+  support: { bg: 'rgba(96,165,250,0.07)',  border: 'rgba(96,165,250,0.22)',  color: '#60a5fa', label: 'Suporte' },
+  utility: { bg: 'rgba(74,222,128,0.05)',  border: 'rgba(74,222,128,0.18)',  color: '#4ade80', label: 'Utilidade' },
+}
 
 type Attrs = {
   str: number; dex: number; con: number; int: number; wis: number; cha: number
@@ -147,6 +156,11 @@ export default function CharacterSheet({ character }: any) {
   const rawInventory: unknown[] = Array.isArray(character.inventory) ? character.inventory : []
   const items = rawInventory.map(parseItem)
 
+  const classConfig = character.className ? getClassByName(character.className) : null
+  const suggestedRole = classConfig?.suggestedRole ?? null
+  const subclass: string | null = character.subclass ?? null
+  const abilities: CharacterAbility[] = Array.isArray(character.abilities) ? character.abilities : []
+
   return (
     <div className="character-sheet space-y-5">
 
@@ -154,7 +168,10 @@ export default function CharacterSheet({ character }: any) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-lg font-semibold title-cinematic">{character.name}</div>
-          <div className="text-sm text-muted mt-0.5">{character.race} · {character.className}</div>
+          <div className="text-sm text-muted mt-0.5">{character.race} · {character.className}{subclass ? ` — ${subclass}` : ''}</div>
+          {suggestedRole && (
+            <div className="text-xs mt-0.5" style={{ color: 'rgba(212,177,106,0.6)' }}>{suggestedRole}</div>
+          )}
         </div>
         <div style={{
           flexShrink: 0, padding: '3px 10px', textAlign: 'center',
@@ -248,6 +265,55 @@ export default function CharacterSheet({ character }: any) {
           </div>
         )}
       </div>
+
+      {/* Abilities */}
+      {abilities.length > 0 && (
+        <div>
+          <div style={{
+            fontSize: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.18em',
+            color: 'rgba(212,177,106,0.45)', fontFamily: 'Cinzel, serif',
+            marginBottom: '0.6rem',
+          }}>
+            Habilidades
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {abilities.map((ab, i) => {
+              const style = ABILITY_STYLE[ab.type] ?? ABILITY_STYLE.utility
+              return (
+                <div key={ab.id ?? i} style={{
+                  display: 'flex', gap: 8, alignItems: 'flex-start',
+                  padding: '6px 9px',
+                  background: style.bg,
+                  border: `1px solid ${style.border}`,
+                  borderRadius: 4,
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: style.color, lineHeight: 1.3 }}>
+                        {ab.name}
+                      </span>
+                      <span style={{
+                        fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.1em',
+                        color: style.color, opacity: 0.75, fontFamily: 'Cinzel, serif',
+                      }}>
+                        {style.label}
+                      </span>
+                      {ab.usesPerScene != null && (
+                        <span style={{ fontSize: '0.55rem', color: 'rgba(255,255,255,0.3)', marginLeft: 'auto', flexShrink: 0 }}>
+                          {ab.usesPerScene}× / cena
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', lineHeight: 1.4 }}>
+                      {ab.description}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
