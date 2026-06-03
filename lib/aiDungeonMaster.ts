@@ -1,4 +1,4 @@
-import type { Campaign, Character, Message, CampaignMemory, PendingTest, ActiveNPC, QuestUpdate, Quest } from './types'
+import type { Campaign, Character, Message, CampaignMemory, PendingTest, ActiveNPC, QuestUpdate, Quest, PartyMember, ActingPlayer } from './types'
 import { createOpenAIClient } from './openai'
 import { analyzeAction } from './masterEngine'
 import { narrateAction, progressSceneState, sceneStateFromMemory, buildMemorySummary } from './narrativeEngine'
@@ -7,6 +7,8 @@ export type AIMasterRequest = {
   playerMessage: string
   campaign: Campaign
   activeCharacter: Character | null
+  actingPlayer?: ActingPlayer | null
+  party?: PartyMember[]
   recentMessages: Pick<Message, 'author' | 'role' | 'content' | 'createdAt'>[]
   campaignMemory: CampaignMemory | null
   pendingTest?: PendingTest | null
@@ -44,6 +46,22 @@ O JOGADOR é o protagonista. Você nunca resolve situações por ele.
 Você apresenta o mundo. O jogador decide o que fazer.
 Você narra consequências. O jogador cria ações.
 Cada resposta sua deve criar curiosidade, tensão e vontade de responder imediatamente.
+
+━━ IDENTIDADE INDIVIDUAL — MULTIPLAYER ━━
+Esta é uma mesa com VÁRIOS JOGADORES, cada um com seu próprio personagem.
+Regras obrigatórias:
+
+1. A seção "PERSONAGEM QUE AGIU AGORA" indica QUEM realizou a ação desta rodada.
+2. Responda SEMPRE direcionado ao personagem que agiu — use o nome dele.
+   ✓ Correto: "Kael se aproxima da porta..."
+   ✗ Errado:  "Vocês todos se aproximam da porta..."
+3. Só envolva outros personagens do grupo se a ação afetar claramente todos.
+4. Se a ação de um personagem criar oportunidade para outro, mencione como CONVITE, nunca como ação automática.
+   Exemplo: "Thoran poderia aproveitar a distração para..."
+5. Nunca atribua ações, falas ou intenções a personagens que não falaram nesta rodada.
+6. Use "o grupo" ou "os aventureiros" apenas quando todos estiverem envolvidos (combate em área, evento climático, etc.).
+7. NPCs podem reagir diferente a personagens diferentes — um guerreiro intimida, um bardo seduz, um clérigo inspira respeito.
+8. A classe e subclasse do personagem que agiu devem influenciar as oportunidades narrativas desta resposta.
 
 ━━ IDENTIDADE E VOZ ━━
 Tom: sombrio, cinematográfico, visceral. Filme noir medieval.
@@ -293,10 +311,12 @@ function buildAIMasterPrompt(request: AIMasterRequest): string {
     `Nível dos aventureiros: ${request.campaign.level || 1}`,
   ].filter(Boolean).join(' | ')
 
-  // ── Personagem ──
+  // ── Personagem que agiu agora ──
+  const actingPlayerName = request.actingPlayer?.playerName ?? null
   const charCtx = char
     ? [
-        `Nome: ${char.name} | ${char.race} ${char.className}${char.subclass ? ` (${char.subclass})` : ''} Nv${char.level}`,
+        actingPlayerName ? `Jogador: ${actingPlayerName}` : '',
+        `Personagem: ${char.name} | ${char.race} ${char.className}${char.subclass ? ` (${char.subclass})` : ''} Nv${char.level}`,
         `HP: ${char.hp} | CA: ${char.ac}`,
         `FOR:${char.attributes.str} DES:${char.attributes.dex} CON:${char.attributes.con} INT:${char.attributes.int} SAB:${char.attributes.wis} CAR:${char.attributes.cha}`,
         `Destaque: ${charStrengths(char)}`,
@@ -306,10 +326,20 @@ function buildAIMasterPrompt(request: AIMasterRequest): string {
           ? `Carregando: ${char.inventory.slice(0, 6).join(', ')}`
           : 'Inventário vazio',
         Array.isArray((char as any).abilities) && (char as any).abilities.length > 0
-          ? `Habilidades: ${(char as any).abilities.map((a: any) => `${a.name} [${a.type}]`).join(', ')} — sugira oportunidades de uso, mas nunca ative sem o jogador escolher`
+          ? `Habilidades: ${(char as any).abilities.map((a: any) => `${a.name} [${a.type}]`).join(', ')} — sugira oportunidades de uso, nunca ative sem o jogador escolher`
           : '',
+        `→ DIRIJA a resposta a ${char.name}. Use o nome dele na narração.`,
       ].filter(Boolean).join('\n')
-    : 'Personagem não definido — trate como aventureiro anônimo.'
+    : 'Personagem não definido — responda: "Antes que o Oráculo registre sua ação, escolha um personagem para entrar na cena."'
+
+  // ── Grupo presente na mesa ──
+  const party = request.party ?? []
+  const partyCtx = party.length > 1
+    ? party
+        .filter(p => p.characterName !== char?.name)
+        .map(p => `• ${p.characterName} [${p.className}${p.subclass ? `/${p.subclass}` : ''}] Nv${p.level} — jogador: ${p.playerName}`)
+        .join('\n')
+    : 'Nenhum outro aventureiro presente.'
 
   // ── Estado do mundo ──
   const memCtx = mem
@@ -368,8 +398,11 @@ function buildAIMasterPrompt(request: AIMasterRequest): string {
   return `━━ CAMPANHA ━━
 ${campaignCtx}
 
-━━ PERSONAGEM ATIVO ━━
+━━ PERSONAGEM QUE AGIU AGORA ━━
 ${charCtx}
+
+━━ GRUPO PRESENTE NA MESA ━━
+${partyCtx}
 
 ━━ ESTADO DO MUNDO ━━
 ${memCtx}
@@ -385,10 +418,11 @@ ${formatRecentMessages(request.recentMessages)}
 ${pendingCtx ? '\n━━ ROLAGEM PENDENTE ━━\n' + pendingCtx : ''}
 
 ━━ AÇÃO DO JOGADOR AGORA ━━
-${request.playerMessage}
+${actingPlayerName ? `[${actingPlayerName}] ` : ''}${request.playerMessage}
 
 ━━ INSTRUÇÃO DE FOCO ━━
 ${focusInstruction}
+Lembre-se: responda direcionado a ${char?.name ?? 'o personagem que agiu'}, não ao grupo todo.
 
 Responda APENAS com JSON válido.`
 }

@@ -564,6 +564,8 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                       campaign={campaign}
                       character={activeCharacter}
                       playerName={playerName ?? 'Aventureiro'}
+                      onlinePlayers={onlinePlayers}
+                      campaignCharacters={campaignCharacters}
                     />
                   )}
                 </div>

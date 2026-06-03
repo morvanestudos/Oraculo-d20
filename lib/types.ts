@@ -163,10 +163,26 @@ export type PendingTest = {
   createdAt: string
 }
 
+export type PartyMember = {
+  playerName: string
+  characterName: string
+  className: string
+  subclass?: string | null
+  race: string
+  level: number
+}
+
+export type ActingPlayer = {
+  playerId: string
+  playerName: string
+}
+
 export type AIMasterRequest = {
   playerMessage: string
   campaign: Campaign
   activeCharacter: Character | null
+  actingPlayer?: ActingPlayer | null
+  party?: PartyMember[]
   recentMessages: Pick<Message, 'author' | 'role' | 'content' | 'createdAt'>[]
   campaignMemory: CampaignMemory | null
   pendingTest?: PendingTest | null

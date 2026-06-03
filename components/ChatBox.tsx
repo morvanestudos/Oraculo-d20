@@ -6,10 +6,11 @@ import { fetchCampaignMemory, updateCampaignMemory, initializeCampaignMemory } f
 import { createPusherClient } from '../lib/pusher-client'
 import { analyzeAction, generateTestOutcomeMessage } from '../lib/masterEngine'
 import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrateAction, buildMasterMessage, buildMemorySummary } from '../lib/narrativeEngine'
-import type { Message, Campaign, Character, PendingTest, CampaignMemory, AIMasterResponse } from '../lib/types'
+import type { Message, Campaign, Character, CampaignPlayer, PendingTest, CampaignMemory, AIMasterResponse, PartyMember } from '../lib/types'
 import { fetchQuests, processQuestUpdates } from '../lib/api/quests'
 import { awardCharacterXp } from '../lib/api/characters'
 import { getCampaignActs, detectCampaignAct } from '../lib/campaignActs'
+import { getPlayerId } from '../lib/storage'
 import CombatPanel from './CombatPanel'
 import CampaignIntroPanel from './CampaignIntroPanel'
 
@@ -18,9 +19,11 @@ type ChatBoxProps = {
   campaign: Campaign
   character: Character | null
   playerName: string
+  onlinePlayers?: CampaignPlayer[]
+  campaignCharacters?: Character[]
 }
 
-export default function ChatBox({ campaignId, campaign, character, playerName }: ChatBoxProps) {
+export default function ChatBox({ campaignId, campaign, character, playerName, onlinePlayers = [], campaignCharacters = [] }: ChatBoxProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
   const [isMasterTyping, setIsMasterTyping] = useState(false)
@@ -266,6 +269,25 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
           }))
         ).catch(() => [])
 
+        // Build party list: every online player that has a character linked
+        const party: PartyMember[] = onlinePlayers
+          .filter(p => p.characterId != null)
+          .reduce<PartyMember[]>((acc, p) => {
+            const char = campaignCharacters.find(c => c.id === p.characterId)
+            if (!char) return acc
+            acc.push({
+              playerName: p.playerName,
+              characterName: char.name,
+              className: char.className,
+              subclass: char.subclass ?? null,
+              race: char.race,
+              level: char.level,
+            })
+            return acc
+          }, [])
+
+        const playerId = getPlayerId()
+
         const response = await fetch(`/api/campaigns/${campaignId}/ai-master`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -273,6 +295,8 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
             playerMessage: playerMessage.content,
             campaign,
             activeCharacter: character,
+            actingPlayer: playerId ? { playerId, playerName } : null,
+            party,
             recentMessages,
             campaignMemory,
             pendingTest: existingPendingTest,
@@ -611,8 +635,15 @@ export default function ChatBox({ campaignId, campaign, character, playerName }:
             ) : (
             <div className={m.role === 'master' ? 'chat-message-master' : m.role === 'system' ? 'chat-message-system' : 'chat-message-player'}>
               <div className="flex items-center justify-between text-xs mb-1 uppercase tracking-[0.2em] text-muted">
-                <span>{m.author}</span>
-                <span>{m.role}</span>
+                <span>
+                  {m.role === 'player' ? (() => {
+                    // Look up character linked to this player
+                    const op = onlinePlayers.find(p => p.playerName === m.author)
+                    const char = op?.characterId ? campaignCharacters.find(c => c.id === op.characterId) : null
+                    return char ? `${char.name} · ${m.author}` : m.author
+                  })() : m.author}
+                </span>
+                <span style={{ opacity: 0.5 }}>{m.role}</span>
               </div>
               <div className="text-sm leading-6">{m.content}</div>
             </div>
