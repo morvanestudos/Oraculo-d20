@@ -21,8 +21,9 @@ import ProloguePanel from '../../../components/ProloguePanel'
 import WorldStatusPanel from '../../../components/WorldStatusPanel'
 import NpcPanel from '../../../components/NpcPanel'
 import ValdrakMap from '../../../components/ValdrakMap'
-import CampaignActsPanel from '../../../components/CampaignActsPanel'
+// import CampaignActsPanel from '../../../components/CampaignActsPanel'  // DESATIVADO temporariamente
 import TurnOrderPanel from '../../../components/TurnOrderPanel'
+import CombatPanel from '../../../components/CombatPanel'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer, TurnState } from '../../../lib/types'
 
@@ -58,6 +59,23 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
 
   // Turn state — updated by TurnOrderPanel callback + Pusher
   const [turnState, setTurnState] = useState<TurnState | null>(null)
+
+  // Sync activeCharacter HP when DiceRoller updates it via custom event
+  useEffect(() => {
+    function onCharUpdated(e: Event) {
+      const { characterId, hp } = (e as CustomEvent<{ characterId: string; hp: number }>).detail
+      setActiveCharacter(prev => {
+        if (!prev || prev.id !== characterId) return prev
+        return { ...prev, hp }
+      })
+      // Also update campaignCharacters list
+      setCampaignCharacters(prev =>
+        prev.map(c => c.id === characterId ? { ...c, hp } : c)
+      )
+    }
+    window.addEventListener('oraculo:character-updated', onCharUpdated)
+    return () => window.removeEventListener('oraculo:character-updated', onCharUpdated)
+  }, [])
 
   // Copy link
   const [copied, setCopied] = useState(false)
@@ -536,27 +554,42 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                <div className="lg:col-span-2 panel glass p-4 rounded-lg">
-                  <div className="mb-4">
-                    <h3 className="font-semibold">Chat da Mesa</h3>
+              {/* ── Chat + DiceRoller ── */}
+              <div className="panel glass rounded-lg overflow-hidden">
+                {/* Header row: title + dice */}
+                <div className="flex items-center justify-between px-4 pt-4 pb-3"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div>
+                    <h3 className="font-semibold text-sm">Chat da Mesa</h3>
                     <p className="text-xs text-muted">Converse com jogadores e com o Mestre IA</p>
                   </div>
+                  {campaign && characterLinked !== false && campaignStarted === true && (() => {
+                    const myPid = getPlayerId()
+                    const turnActive = turnState?.active ?? false
+                    const currentActor = turnActive ? (turnState!.turnOrder[turnState!.currentTurnIndex] ?? null) : null
+                    const isMyTurn = !turnActive || currentActor?.playerId === myPid
+                    return (
+                      <DiceRoller
+                        campaignId={campaign.id}
+                        isMyTurn={isMyTurn}
+                        currentActorName={!isMyTurn ? currentActor?.characterName : null}
+                      />
+                    )
+                  })()}
+                </div>
+
+                {/* Chat body */}
+                <div className="p-2" style={{ minHeight: '560px' }}>
                   {campaign && (characterLinked === false || campaignStarted === false) ? (
                     <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: 320,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      height: 400,
                       background: 'rgba(212,177,106,0.03)',
                       border: '1px dashed rgba(212,177,106,0.15)',
                       borderRadius: 8,
-                      color: '#7a6040',
-                      fontSize: '0.82rem',
-                      fontFamily: 'Georgia, serif',
-                      fontStyle: 'italic',
-                      textAlign: 'center',
-                      padding: '1rem',
+                      color: '#7a6040', fontSize: '0.82rem',
+                      fontFamily: 'Georgia, serif', fontStyle: 'italic',
+                      textAlign: 'center', padding: '1rem',
                     }}>
                       {characterLinked === false
                         ? 'Escolha um personagem para começar a jogar.'
@@ -573,29 +606,6 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                       turnState={turnState}
                     />
                   )}
-                </div>
-
-                <div className="panel glass p-4 rounded-lg">
-                  <div className="flex items-center justify-between mb-4">
-                    <div>
-                      <h4 className="font-semibold">Mestre IA</h4>
-                      <div className="text-xs text-muted">Painel de controle</div>
-                    </div>
-                    {campaign && characterLinked !== false && campaignStarted === true && (() => {
-                      const myPid = getPlayerId()
-                      const turnActive = turnState?.active ?? false
-                      const currentActor = turnActive ? (turnState!.turnOrder[turnState!.currentTurnIndex] ?? null) : null
-                      const isMyTurn = !turnActive || currentActor?.playerId === myPid
-                      return (
-                        <DiceRoller
-                          campaignId={campaign.id}
-                          isMyTurn={isMyTurn}
-                          currentActorName={!isMyTurn ? currentActor?.characterName : null}
-                        />
-                      )
-                    })()}
-                  </div>
-                  <div className="text-sm text-muted">Logs de cena e sugestões do Mestre IA aparecerão aqui.</div>
                 </div>
               </div>
 
@@ -618,17 +628,21 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                 <QuestLog campaignId={campaign.id} />
               </div>
 
+              {/* Combat panel — only shown when combat is active */}
+              <CombatPanel campaignId={campaign.id} />
+
               {/* Turn Order */}
               <TurnOrderPanel
                 campaignId={campaign.id}
                 onTurnStateChange={setTurnState}
               />
 
-              {/* Campaign Acts */}
+              {/* Campaign Acts — DESATIVADO temporariamente para estabilização
               <CampaignActsPanel
                 campaignId={campaign.id}
                 campaignTitle={campaign.title}
               />
+              */}
 
               {/* Online players */}
               <div className="panel glass p-4 rounded-lg">

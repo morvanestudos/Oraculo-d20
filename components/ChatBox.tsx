@@ -9,7 +9,7 @@ import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrate
 import type { Message, Campaign, Character, CampaignPlayer, PendingTest, CampaignMemory, AIMasterResponse, PartyMember, TurnState } from '../lib/types'
 import { fetchQuests, processQuestUpdates } from '../lib/api/quests'
 import { awardCharacterXp } from '../lib/api/characters'
-import { getCampaignActs, detectCampaignAct } from '../lib/campaignActs'
+// import { getCampaignActs, detectCampaignAct } from '../lib/campaignActs'  // DESATIVADO temporariamente
 import { getPlayerId } from '../lib/storage'
 import CombatPanel from './CombatPanel'
 import CampaignIntroPanel from './CampaignIntroPanel'
@@ -432,10 +432,6 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
           ...memoryUpdate
         }
 
-        // Detect act progression before and after memory update
-        const prevAct = detectCampaignAct(campaign.title, updatedMemory)
-        const nextAct = detectCampaignAct(campaign.title, newMemoryState)
-
         setCampaignMemory(newMemoryState)
         saveCampaignMemory(newMemoryState)
 
@@ -443,26 +439,23 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
           console.error('Falha ao atualizar campanha memória:', error)
         })
 
-        // Announce act change — fire-and-forget, no await to not block chat
+        // Act announcements DESATIVADAS temporariamente para estabilização
+        // Para reativar: descomentar o bloco abaixo e importar detectCampaignAct/getCampaignActs
+        /*
+        const prevAct = detectCampaignAct(campaign.title, updatedMemory)
+        const nextAct = detectCampaignAct(campaign.title, newMemoryState)
         if (nextAct > prevAct) {
           const acts = getCampaignActs(campaign.title)
           const newActData = acts.find(a => a.number === nextAct)
           const announceFlag = newActData?.announceFlag ?? `act_${nextAct}_announced`
           const alreadyAnnounced = (newMemoryState.storyFlags ?? {})[announceFlag]
-
           if (!alreadyAnnounced && newActData) {
-            // Save flag to prevent repeat announcements
             const flagUpdate = { storyFlags: { ...newMemoryState.storyFlags, [announceFlag]: true } }
             updateCampaignMemory(campaignId, flagUpdate).catch(() => {})
-
-            const actMessage = `⚔️ ${newActData.title} — ${newActData.subtitle}`
-            createMessage(campaignId, {
-              author: 'Sistema',
-              role: 'system',
-              content: actMessage,
-            }).catch(() => {})
+            createMessage(campaignId, { author: 'Sistema', role: 'system', content: `⚔️ ${newActData.title} — ${newActData.subtitle}` }).catch(() => {})
           }
         }
+        */
       }
 
       if (pendingTest) {
@@ -608,7 +601,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
   }
 
   return (
-    <div className="flex flex-col h-80">
+    <div className="flex flex-col" style={{ minHeight: '560px', height: '100%' }}>
       <style>{`
         .narrative-choice {
           background: linear-gradient(135deg, #1c1000 0%, #2a1a00 100%);
@@ -635,8 +628,29 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
           transform: scale(0.97);
         }
       `}</style>
-      <CombatPanel campaignId={campaignId} />
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 chat-scroll">
+      {/* Turn status bar — compact, non-invasive */}
+      {turnActive && currentActor && (
+        <div
+          className="flex items-center justify-between px-3 py-1.5 text-xs"
+          style={{
+            background: isMyTurn
+              ? 'rgba(212,177,106,0.08)'
+              : 'rgba(255,255,255,0.03)',
+            borderBottom: isMyTurn
+              ? '1px solid rgba(212,177,106,0.2)'
+              : '1px solid rgba(255,255,255,0.06)',
+          }}
+        >
+          <span style={{ color: isMyTurn ? '#d4b16a' : 'rgba(255,255,255,0.35)' }}>
+            {isMyTurn ? `⚔️ Sua vez — ${currentActor.characterName}` : `⚔️ Vez de ${currentActor.characterName}`}
+          </span>
+          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.6rem' }}>
+            Modo Turnos ativo
+          </span>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 chat-scroll" style={{ minHeight: 0 }}>
         {messages.map(m => (
           <React.Fragment key={m.id}>
             {m.role === 'system' && m.content.startsWith('⚔️ Ato') ? (

@@ -11,7 +11,9 @@
       "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\" -Directory)",
       "Bash(Select-Object Name)",
       "Bash(git stash *)",
-      "Bash(mkdir -p \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\\\\app\\\\api\\\\campaigns\\\\[id]\\\\turns\\\\start\" \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\\\\app\\\\api\\\\campaigns\\\\[id]\\\\turns\\\\next\" \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\\\\app\\\\api\\\\campaigns\\\\[id]\\\\turns\\\\end\" 2>&1)"
+      "Bash(mkdir -p \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\\\\app\\\\api\\\\campaigns\\\\[id]\\\\turns\\\\start\" \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\\\\app\\\\api\\\\campaigns\\\\[id]\\\\turns\\\\next\" \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\\\\app\\\\api\\\\campaigns\\\\[id]\\\\turns\\\\end\" 2>&1)",
+      "Bash(Get-Content -Path \"C:\\\\Users\\\\Pichau\\\\oraculo-d20\\\\lib\\\\storage.ts\")",
+      "Bash(Select-String -Pattern \"export function saveCharacter\" -Context 0,15)"
     ]
   }
 }

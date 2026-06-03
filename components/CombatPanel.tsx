@@ -14,6 +14,15 @@ export default function CombatPanel({ campaignId }: Props) {
     setState(getCombatState(campaignId))
   }, [campaignId])
 
+  // Re-read state whenever DiceRoller updates combat
+  useEffect(() => {
+    function onCombatUpdated() {
+      setState(getCombatState(campaignId))
+    }
+    window.addEventListener('oraculo:combat-updated', onCombatUpdated)
+    return () => window.removeEventListener('oraculo:combat-updated', onCombatUpdated)
+  }, [campaignId])
+
   function refresh() {
     setState(getCombatState(campaignId))
   }

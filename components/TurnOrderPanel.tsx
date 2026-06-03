@@ -12,11 +12,14 @@ type Props = {
 export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props) {
   const [turnState, setTurnState] = useState<TurnState | null>(null)
   const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const myPlayerId = getPlayerId()
 
   const applyState = useCallback((state: TurnState | null) => {
     setTurnState(state)
     onTurnStateChange?.(state)
+    // Auto-expand when turns become active
+    if (state?.active) setExpanded(true)
   }, [onTurnStateChange])
 
   // Initial fetch
@@ -83,25 +86,47 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
       className="panel glass rounded-lg overflow-hidden"
       style={{ border: '1px solid rgba(212,177,106,0.2)' }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3">
+      {/* Header — clickable to expand/collapse */}
+      <button
+        className="w-full flex items-center justify-between px-4 pt-4 pb-3 text-left"
+        onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
+      >
         <div className="flex items-center gap-2">
           <span>⚔️</span>
-          <span className="font-semibold text-sm tracking-wide" style={{ color: '#d4b16a', fontFamily: 'Cinzel, serif' }}>
-            {turnState?.active ? `Turno — Rodada ${turnState.round}` : 'Modo Exploração'}
+          <div>
+            <div className="font-semibold text-sm tracking-wide" style={{ color: '#d4b16a', fontFamily: 'Cinzel, serif' }}>
+              {turnState?.active ? `Turno — Rodada ${turnState.round}` : 'Modo Exploração'}
+            </div>
+            {/* Compact subtitle when collapsed */}
+            {!expanded && turnState?.active && currentEntry && (
+              <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Vez de {currentEntry.characterName}
+              </div>
+            )}
+            {!expanded && !turnState?.active && (
+              <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                Toque para iniciar turnos
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span
+            className="text-xs px-2 py-0.5 rounded-full"
+            style={turnState?.active
+              ? { background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }
+              : { background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' }}
+          >
+            {turnState?.active ? 'Ativo' : 'Livre'}
+          </span>
+          <span style={{ color: 'rgba(212,177,106,0.5)', fontSize: '0.7rem', transform: expanded ? 'rotate(180deg)' : 'rotate(0)', display: 'inline-block', transition: 'transform 0.2s' }}>
+            ▼
           </span>
         </div>
-        <span
-          className="text-xs px-2 py-0.5 rounded-full"
-          style={turnState?.active
-            ? { background: 'rgba(239,68,68,0.12)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }
-            : { background: 'rgba(74,222,128,0.08)', color: '#4ade80', border: '1px solid rgba(74,222,128,0.2)' }}
-        >
-          {turnState?.active ? 'Turno ativo' : 'Livre'}
-        </span>
-      </div>
+      </button>
 
-      <div className="px-4 pb-4 space-y-3">
+      {expanded && <div className="px-4 pb-4 space-y-3">
         {/* Turn order list */}
         {turnState?.active && turnState.turnOrder.length > 0 && (
           <div className="space-y-1.5">
@@ -256,7 +281,7 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
             Aguardando {currentEntry.characterName}...
           </div>
         )}
-      </div>
+      </div>}
     </div>
   )
 }
