@@ -1,4 +1,5 @@
-import React from 'react'
+'use client'
+import React, { useState } from 'react'
 import { getClassByName } from '../lib/characterClasses'
 import type { InventoryItem, ItemRarity, ItemType, CharacterAbility } from '../lib/types'
 
@@ -102,12 +103,46 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 // ── Item card ─────────────────────────────────────────────────────
-function ItemCard({ item }: { item: InventoryItem }) {
+function ItemCard({
+  item,
+  characterId,
+  onUsed,
+}: {
+  item: InventoryItem
+  characterId?: string
+  onUsed?: (updatedInventory: InventoryItem[], newHp?: number) => void
+}) {
+  const [using, setUsing] = useState(false)
   const rarity = item.rarity ?? 'comum'
   const type   = item.type   ?? 'artefato'
   const color  = RARITY_COLOR[rarity]
   const bg     = RARITY_BG[rarity]
   const icon   = TYPE_ICON[type]
+  const qty    = item.quantity ?? 1
+  const canUse = type === 'poção' && !!item.effect && item.effect.kind !== 'none' && !!characterId
+
+  async function handleUse() {
+    if (!characterId || using) return
+    setUsing(true)
+    try {
+      const r = await fetch(`/api/characters/${characterId}/inventory`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'use', itemId: item.id, itemName: item.name }),
+      })
+      if (r.ok) {
+        const data = await r.json()
+        onUsed?.(data.inventory, data.hp)
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('oraculo:character-updated', {
+            detail: { characterId, hp: data.hp },
+          }))
+        }
+      }
+    } finally {
+      setUsing(false)
+    }
+  }
 
   return (
     <div style={{
@@ -120,8 +155,15 @@ function ItemCard({ item }: { item: InventoryItem }) {
     }}>
       <span style={{ fontSize: '0.8rem', flexShrink: 0 }}>{icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '0.78rem', color: '#c8b070', fontWeight: 500, lineHeight: 1.3 }}>
-          {item.name}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ fontSize: '0.78rem', color: '#c8b070', fontWeight: 500, lineHeight: 1.3 }}>
+            {item.name}
+          </div>
+          {qty > 1 && (
+            <span style={{ fontSize: '0.6rem', color: 'rgba(212,177,106,0.5)', background: 'rgba(212,177,106,0.08)', borderRadius: 3, padding: '1px 4px' }}>
+              ×{qty}
+            </span>
+          )}
         </div>
         {item.description && (
           <div style={{ fontSize: '0.65rem', color: '#6a5838', lineHeight: 1.35, marginTop: 1 }}>
@@ -129,16 +171,26 @@ function ItemCard({ item }: { item: InventoryItem }) {
           </div>
         )}
       </div>
-      <div style={{
-        flexShrink: 0,
-        fontSize: '0.55rem',
-        textTransform: 'uppercase',
-        letterSpacing: '0.12em',
-        color,
-        fontFamily: 'Cinzel, serif',
-        opacity: 0.9,
-      }}>
-        {rarity}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+        <div style={{ fontSize: '0.55rem', textTransform: 'uppercase', letterSpacing: '0.12em', color, fontFamily: 'Cinzel, serif', opacity: 0.9 }}>
+          {rarity}
+        </div>
+        {canUse && (
+          <button
+            onClick={handleUse}
+            disabled={using || qty <= 0}
+            style={{
+              fontSize: '0.55rem', letterSpacing: '0.06em',
+              background: 'rgba(74,222,128,0.1)',
+              border: '1px solid rgba(74,222,128,0.3)',
+              borderRadius: 3, padding: '2px 6px',
+              color: '#4ade80', cursor: 'pointer',
+              opacity: using || qty <= 0 ? 0.4 : 1,
+            }}
+          >
+            {using ? '...' : 'Usar'}
+          </button>
+        )}
       </div>
     </div>
   )
@@ -147,14 +199,20 @@ function ItemCard({ item }: { item: InventoryItem }) {
 // ── CharacterSheet ────────────────────────────────────────────────
 export default function CharacterSheet({ character }: any) {
   const attrs: Attrs       = character.attributes
-  const hpPercent          = Math.min(100, (character.hp / Math.max(character.hp, 40)) * 100)
+  const [currentHp, setCurrentHp] = useState<number>(character.hp ?? 0)
+  const [liveInventory, setLiveInventory] = useState<InventoryItem[] | null>(null)
+
+  const hp = currentHp
+  const hpPercent          = Math.min(100, (hp / Math.max(hp, 40)) * 100)
   const xp                 = character.xp ?? 0
   const nextLevelXp        = character.nextLevelXp ?? 100
   const xpPct              = Math.min(100, (xp / nextLevelXp) * 100)
   const level              = character.level ?? 1
 
-  const rawInventory: unknown[] = Array.isArray(character.inventory) ? character.inventory : []
-  const items = rawInventory.map(parseItem)
+  const rawInventory: unknown[] = liveInventory
+    ? liveInventory
+    : Array.isArray(character.inventory) ? character.inventory : []
+  const items: InventoryItem[] = rawInventory.map(parseItem)
 
   const classConfig = character.className ? getClassByName(character.className) : null
   const suggestedRole = classConfig?.suggestedRole ?? null
@@ -208,7 +266,7 @@ export default function CharacterSheet({ character }: any) {
           <div className="hp-vial overflow-hidden rounded-full">
             <div style={{ width: `${hpPercent}%` }} className="h-3 bg-gradient-to-r from-gold to-arcane" />
           </div>
-          <div className="text-xs text-muted mt-1">{character.hp} HP</div>
+          <div className="text-xs text-muted mt-1">{hp} HP</div>
         </div>
         <div className="text-right">
           <div className="text-xs text-muted uppercase tracking-[0.2em] mb-2">Armadura</div>
@@ -250,7 +308,17 @@ export default function CharacterSheet({ character }: any) {
 
         {items.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {items.map((item, i) => <ItemCard key={i} item={item} />)}
+            {items.map((item, i) => (
+              <ItemCard
+                key={item.id ?? i}
+                item={item}
+                characterId={character.id}
+                onUsed={(inv, newHp) => {
+                  setLiveInventory(inv)
+                  if (newHp != null) setCurrentHp(newHp)
+                }}
+              />
+            ))}
           </div>
         ) : (
           <div style={{

@@ -7,7 +7,6 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const campaignId = Number(params.id)
   if (Number.isNaN(campaignId)) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
-  // Fetch all online players with a linked character (seen in last 120s)
   const since = new Date(Date.now() - 120_000)
   const players = await prisma.campaignPlayer.findMany({
     where: { campaignId, characterId: { not: null }, lastSeenAt: { gte: since } },
@@ -17,23 +16,44 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: 'Nenhum jogador com personagem vinculado encontrado.' }, { status: 400 })
   }
 
-  // Fetch character dexterity for initiative calculation
   const charIds = players.map(p => p.characterId!).filter(Boolean)
   const characters = await prisma.character.findMany({ where: { id: { in: charIds } } })
   const charMap = new Map(characters.map(c => [c.id, c]))
 
-  const turnOrder: TurnEntry[] = players
+  // Player entries
+  const playerEntries: TurnEntry[] = players
     .reduce<TurnEntry[]>((acc, p) => {
       const char = charMap.get(p.characterId!)
       if (!char) return acc
       const dexMod = Math.floor(((char.dexterity ?? 10) - 10) / 2)
       const initiative = Math.floor(Math.random() * 20) + 1 + dexMod
-      acc.push({ playerId: p.playerId, playerName: p.playerName, characterId: char.id, characterName: char.name, initiative, hasActed: false })
+      acc.push({
+        type: 'player',
+        playerId: p.playerId,
+        playerName: p.playerName,
+        characterId: char.id,
+        characterName: char.name,
+        initiative,
+        hasActed: false,
+      })
       return acc
     }, [])
+
+  // Active enemy entries
+  const enemies = await prisma.enemy.findMany({
+    where: { campaignId, active: true, status: 'alive' },
+  })
+  const enemyEntries: TurnEntry[] = enemies.map(e => ({
+    type: 'enemy' as const,
+    enemyId: e.id,
+    enemyName: e.name,
+    initiative: e.initiative > 0 ? e.initiative : Math.floor(Math.random() * 20) + 1,
+    hasActed: false,
+  }))
+
+  const turnOrder = [...playerEntries, ...enemyEntries]
     .sort((a, b) => b.initiative - a.initiative)
 
-  // Upsert turn state
   const state = await prisma.campaignTurnState.upsert({
     where: { campaignId },
     create: { campaignId, active: true, round: 1, currentTurnIndex: 0, turnOrder },
@@ -50,10 +70,10 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     updatedAt: state.updatedAt.toISOString(),
   }
 
-  // System message + Pusher
   const first = turnOrder[0]
+  const firstLabel = first?.type === 'enemy' ? first.enemyName : first?.characterName ?? '—'
   await prisma.message.create({
-    data: { campaignId, author: 'Sistema', role: 'system', content: `⚔️ Turnos iniciados. Rodada 1. Agora é a vez de ${first?.characterName ?? 'aguardar'}.` },
+    data: { campaignId, author: 'Sistema', role: 'system', content: `⚔️ Turnos iniciados. Rodada 1. Agora é a vez de ${firstLabel}.` },
   })
 
   await pusher.trigger(`campaign-${campaignId}`, 'turn-updated', mapped).catch(() => {})

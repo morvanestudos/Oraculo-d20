@@ -1,5 +1,5 @@
 "use client"
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import D20DiceCss from './D20DiceCss'
 import {
   saveMessage, getPendingTest, clearPendingTest,
@@ -22,6 +22,7 @@ type DiceRollerProps = {
   campaignId: string
   isMyTurn?: boolean
   currentActorName?: string | null
+  turnActive?: boolean   // when true + isMyTurn, auto-advance after resolving dice
 }
 
 const ROLL_LABELS: Record<string, string> = {
@@ -45,11 +46,12 @@ function dispatchCharacterUpdated(characterId: string, newHp: number) {
   }))
 }
 
-export default function DiceRoller({ campaignId, isMyTurn = true, currentActorName }: DiceRollerProps) {
+export default function DiceRoller({ campaignId, isMyTurn = true, currentActorName, turnActive = false }: DiceRollerProps) {
   const [last, setLast]       = useState<number | null>(null)
   const [rolling, setRolling] = useState(false)
   const [pending, setPending] = useState<PendingTest | null>(null)
   const blocked = isMyTurn === false
+  const turnAdvanceRef = useRef(false)   // prevent double-advance from dice
 
   useEffect(() => {
     const check = () => setPending(getPendingTest(campaignId))
@@ -98,8 +100,66 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
 
       // ── ATTACK TEST ─────────────────────────────────────────────────────────
       if (rollType === 'ataque') {
-        const combat = getCombatState(campaignId) as CombatState | null
+        const strBonus = (character?.attributes?.str ?? 10) - 10
 
+        // Try DB enemies first
+        let dbEnemy: { id: string; name: string; hp: number; maxHp: number; armorClass: number } | null = null
+        try {
+          const er = await fetch(`/api/campaigns/${campaignId}/enemies`)
+          if (er.ok) {
+            const list: { id: string; name: string; hp: number; maxHp: number; armorClass: number; active: boolean; status: string }[] = await er.json()
+            dbEnemy = list.find(e => e.active && e.status === 'alive') ?? null
+          }
+        } catch { /* fallback to localStorage */ }
+
+        if (dbEnemy) {
+          const hit     = isCriticalSuccess || (!isCriticalFail && total >= dbEnemy.armorClass)
+          const critHit = isCriticalSuccess
+          const critMiss = isCriticalFail
+
+          if (!hit) {
+            const txt = critMiss
+              ? `💀 Falha crítica! O ataque sai terrivelmente errado.`
+              : formatMissMessage(character?.name ?? 'Personagem', dbEnemy.name)
+            await postMaster(campaignId, txt)
+          } else {
+            const dmgRoll = calculateAttackDamage({ strBonus, critical: critHit })
+            const prevHp  = dbEnemy.hp
+            const newHp   = applyDamage(prevHp, dmgRoll.totalDamage, dbEnemy.maxHp)
+
+            // Persist via API
+            await fetch(`/api/enemies/${dbEnemy.id}/damage`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ hpChange: -dmgRoll.totalDamage, reason: `Ataque de ${character?.name ?? 'Personagem'}` }),
+            }).catch(() => {})
+
+            await postMaster(
+              campaignId,
+              formatDamageMessage({
+                attackerName: character?.name ?? 'Personagem',
+                targetName: dbEnemy.name,
+                damageRoll: dmgRoll,
+                previousHp: prevHp,
+                newHp,
+                isPlayer: true,
+              })
+            )
+
+            if (newHp <= 0) {
+              await postMaster(campaignId, `☠️ ${dbEnemy.name} foi derrotado!`)
+              // Check if all enemies dead → end turns + distribute XP
+              await checkCombatEnd(campaignId, character?.id)
+            }
+          }
+          clearPendingTest(campaignId)
+          setPending(null)
+          autoAdvanceTurnAfterRoll(campaignId, turnActive, isMyTurn, turnAdvanceRef)
+          return
+        }
+
+        // Fallback: localStorage CombatState
+        const combat = getCombatState(campaignId) as CombatState | null
         if (!combat) {
           // No active combat state — treat as generic test
           goto_generic: {
@@ -116,8 +176,6 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
 
         const enemy  = combat.combatants.find(c => c.type === 'enemy' && c.hp > 0)
         const player = combat.combatants.find(c => c.type === 'player')
-        const charStr  = character?.attributes?.str ?? 10
-        const strBonus = charStr - 10  // raw modifier (not halved yet — combatDamage uses it)
 
         if (!enemy) {
           await postMaster(campaignId, 'Não há inimigos válidos para atacar.')
@@ -212,6 +270,7 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
 
         clearPendingTest(campaignId)
         setPending(null)
+        autoAdvanceTurnAfterRoll(campaignId, turnActive, isMyTurn, turnAdvanceRef)
         return
       }
 
@@ -226,6 +285,7 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
         await postMaster(campaignId, msg)
         clearPendingTest(campaignId)
         setPending(null)
+        autoAdvanceTurnAfterRoll(campaignId, turnActive, isMyTurn, turnAdvanceRef)
       }
     }, 700)
   }
@@ -292,6 +352,19 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+function autoAdvanceTurnAfterRoll(
+  campaignId: string,
+  turnActive: boolean,
+  isMyTurn: boolean,
+  guardRef: React.MutableRefObject<boolean>
+) {
+  if (!turnActive || !isMyTurn || guardRef.current) return
+  guardRef.current = true
+  fetch(`/api/campaigns/${campaignId}/turns/next`, { method: 'POST' })
+    .catch(() => {})
+    .finally(() => { guardRef.current = false })
+}
+
 async function postMaster(campaignId: string, content: string) {
   const payload = { author: 'Mestre IA', role: 'master' as const, content }
   const msg = await createMessage(campaignId, payload)
@@ -307,4 +380,32 @@ async function postSystem(campaignId: string, content: string) {
 function dispatchCombatUpdated() {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent('oraculo:combat-updated'))
+}
+
+async function checkCombatEnd(campaignId: string, characterId?: string) {
+  try {
+    const r = await fetch(`/api/campaigns/${campaignId}/enemies`)
+    if (!r.ok) return
+    const enemies = await r.json() as { active: boolean; status: string; xpReward?: number; loot?: unknown[] }[]
+    const remaining = enemies.filter(e => e.active && e.status === 'alive')
+    if (remaining.length > 0) return
+
+    // All defeated — post victory message
+    const totalXp = enemies.reduce((sum, e) => sum + (e.xpReward ?? 0), 0)
+    const lootItems = enemies.flatMap(e => Array.isArray(e.loot) ? e.loot as {name:string}[] : [])
+
+    let victoryMsg = `⚔️ O combate terminou! Todos os inimigos foram derrotados.`
+    if (totalXp > 0) victoryMsg += `\n✨ O grupo ganhou **${totalXp} XP**.`
+    if (lootItems.length > 0) {
+      victoryMsg += `\n🎁 Loot encontrado:\n${lootItems.map((l: {name:string}) => `• ${l.name}`).join('\n')}`
+    }
+
+    const payload = { author: 'Sistema', role: 'system' as const, content: victoryMsg }
+    await fetch(`/api/campaigns/${campaignId}/messages`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    }).catch(() => {})
+
+    // End turns
+    await fetch(`/api/campaigns/${campaignId}/turns/end`, { method: 'POST' }).catch(() => {})
+  } catch { /* non-fatal */ }
 }

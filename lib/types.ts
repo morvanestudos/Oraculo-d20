@@ -253,16 +253,33 @@ export type QuestUpdate = {
 export type ItemRarity = 'comum' | 'incomum' | 'raro' | 'amaldiçoado'
 export type ItemType = 'chave' | 'poção' | 'arma' | 'pista' | 'artefato' | 'equipamento'
 
+export type ItemEffect = {
+  kind: 'heal' | 'damage' | 'buff' | 'key' | 'none'
+  value?: string   // e.g. "1d8+2"
+}
+
 export type InventoryItem = {
+  id?: string
   name: string
   description?: string | null
   rarity?: ItemRarity
   type?: ItemType
+  quantity?: number
+  effect?: ItemEffect
 }
 
 export type InventoryUpdate = {
   action: 'add' | 'remove'
   item: InventoryItem
+}
+
+export type InventoryPatchDTO = {
+  action: 'add' | 'remove' | 'use' | 'set'
+  item?: Partial<InventoryItem>
+  itemId?: string
+  itemName?: string
+  quantity?: number
+  targetCharacterId?: string
 }
 
 export type AIMasterResponse = {
@@ -358,6 +375,20 @@ export type Profile = {
   created_at?: string
 }
 
+export type Npc = {
+  id: string
+  campaignId: string
+  name: string
+  role?: string | null
+  mood: string
+  trust: number
+  fear: number
+  knownInfo?: string | null
+  secrets?: string | null
+  lastInteraction?: string | null
+  active: boolean
+}
+
 export type SupabaseCampaign = {
   id: string
   title: string
@@ -422,11 +453,48 @@ export type CombatLog = {
   createdAt: string
 }
 
+export type EnemyAbility = {
+  name: string
+  description: string
+  damageDice?: string
+  bonus?: number
+  effect?: string
+}
+
+export type LootItem = {
+  name: string
+  description?: string
+  type?: 'gold' | 'item' | 'weapon' | 'potion' | 'quest'
+  quantity?: number
+  rarity?: 'comum' | 'incomum' | 'raro' | 'lendario'
+}
+
+export type Enemy = {
+  id: string
+  campaignId: string
+  name: string
+  description?: string
+  hp: number
+  maxHp: number
+  armorClass: number
+  initiative: number
+  status: 'alive' | 'dead' | 'fleeing'
+  abilities?: EnemyAbility[]
+  loot?: LootItem[]
+  xpReward?: number
+  active: boolean
+}
+
 export type TurnEntry = {
-  playerId: string
-  playerName: string
-  characterId: number
-  characterName: string
+  type?: 'player' | 'enemy'
+  // player fields
+  playerId?: string
+  playerName?: string
+  characterId?: number
+  characterName?: string
+  // enemy fields
+  enemyId?: number
+  enemyName?: string
   initiative: number
   hasActed: boolean
 }

@@ -1,4 +1,4 @@
-import type { Campaign, Character, Message, CampaignMemory, PendingTest, ActiveNPC, QuestUpdate, Quest, PartyMember, ActingPlayer } from './types'
+import type { Campaign, Character, Message, CampaignMemory, PendingTest, ActiveNPC, QuestUpdate, Quest, PartyMember, ActingPlayer, Npc } from './types'
 import { createOpenAIClient } from './openai'
 import { analyzeAction } from './masterEngine'
 import { narrateAction, progressSceneState, sceneStateFromMemory, buildMemorySummary } from './narrativeEngine'
@@ -8,6 +8,7 @@ export type AIMasterRequest = {
   campaign: Campaign
   activeCharacter: Character | null
   actingPlayer?: ActingPlayer | null
+  persistentNpcs?: Npc[]
   party?: PartyMember[]
   recentMessages: Pick<Message, 'author' | 'role' | 'content' | 'createdAt'>[]
   campaignMemory: CampaignMemory | null
@@ -46,6 +47,18 @@ O JOGADOR é o protagonista. Você nunca resolve situações por ele.
 Você apresenta o mundo. O jogador decide o que fazer.
 Você narra consequências. O jogador cria ações.
 Cada resposta sua deve criar curiosidade, tensão e vontade de responder imediatamente.
+
+━━ MODO DE TURNOS — QUANDO ATIVO ━━
+Se o contexto indicar que turnos estão ativos:
+  1. Responda APENAS ao personagem que agiu nesta rodada.
+  2. Resolva a ação dele completamente — consequência clara + gancho.
+  3. Se houver risco → peça rolagem (o turno só avança após o dado).
+  4. Se não houver risco → entregue consequência curta e direta.
+  5. Termine com gancho para o próximo jogador, mas NÃO peça que o personagem atual aja novamente.
+  6. Não inclua múltiplas ações para o mesmo personagem em uma resposta de turno.
+
+Exemplo de encerramento correto em modo turno:
+  "Kael percebe que Arvik está mentindo. Antes que possa insistir, um ruído seco vem da porta dos fundos. A atenção da mesa se volta naturalmente para o próximo aventureiro."
 
 ━━ IDENTIDADE INDIVIDUAL — MULTIPLAYER ━━
 Esta é uma mesa com VÁRIOS JOGADORES, cada um com seu próprio personagem.
@@ -585,6 +598,14 @@ function buildAIMasterPrompt(request: AIMasterRequest): string {
   // ── NPCs ──
   const npcCtx = formatNPCs(mem?.activeNPCs ?? [])
 
+  // ── Persistent NPCs ──
+  const persistentNpcCtx = (request.persistentNpcs ?? []).length > 0
+    ? request.persistentNpcs!.map(n => {
+        const trustLabel = n.trust >= 5 ? 'aliado' : n.trust >= 2 ? 'amigável' : n.trust <= -3 ? 'hostil' : 'neutro'
+        return `• ${n.name} [${n.role ?? 'NPC'}] | humor: ${n.mood} | confiança: ${n.trust}/10 (${trustLabel}) | medo: ${n.fear}/10${n.knownInfo ? ` | sabe: ${n.knownInfo}` : ''}${n.secrets ? ` | SEGREDO: ${n.secrets}` : ''}`
+      }).join('\n')
+    : ''
+
   // ── Quests ──
   const questCtx = formatQuests(request.activeQuests)
 
@@ -641,6 +662,7 @@ ${memCtx}
 
 ━━ NPCs PRESENTES ━━
 ${npcCtx}
+${persistentNpcCtx ? `\n━━ PERSONAGENS PERSISTENTES (lembram o passado, escondem segredos) ━━\n${persistentNpcCtx}` : ''}
 
 ━━ QUESTS ATIVAS ━━
 ${questCtx}

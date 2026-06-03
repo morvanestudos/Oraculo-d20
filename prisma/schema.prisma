@@ -28,6 +28,44 @@ model Campaign {
   quests         Quest[]
   campaignPlayers CampaignPlayer[]
   turnState      CampaignTurnState?
+  enemies        Enemy[]
+  npcs           Npc[]
+}
+
+model Npc {
+  id              Int      @id @default(autoincrement())
+  campaignId      Int
+  name            String
+  role            String?
+  mood            String   @default("neutro")
+  trust           Int      @default(0)
+  fear            Int      @default(0)
+  knownInfo       String?
+  secrets         String?
+  lastInteraction DateTime?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  campaign        Campaign @relation(fields: [campaignId], references: [id])
+}
+
+model Enemy {
+  id          Int      @id @default(autoincrement())
+  campaignId  Int
+  name        String
+  description String?
+  hp          Int      @default(10)
+  maxHp       Int      @default(10)
+  armorClass  Int      @default(12)
+  initiative  Int      @default(0)
+  status      String   @default("alive")
+  abilities   Json?
+  loot        Json?
+  xpReward    Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  campaign    Campaign @relation(fields: [campaignId], references: [id])
 }
 
 model CampaignTurnState {

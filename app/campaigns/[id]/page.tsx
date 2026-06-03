@@ -25,6 +25,7 @@ import ValdrakMap from '../../../components/ValdrakMap'
 import TurnOrderPanel from '../../../components/TurnOrderPanel'
 import CombatPanel from '../../../components/CombatPanel'
 import MobileGameHud, { type MobilePanel } from '../../../components/MobileGameHud'
+import EnemyPanel from '../../../components/EnemyPanel'
 import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
 import type { Campaign, Character, CampaignPlayer, TurnState } from '../../../lib/types'
 
@@ -495,12 +496,12 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
       )}
 
       <div className="min-h-screen flex flex-col">
-        <div className="flex-1 container mx-auto px-6 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="flex-1 container mx-auto px-4 lg:px-6 py-4 lg:py-8 pb-24 lg:pb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 lg:gap-6">
             {error && <div className="lg:col-span-4 text-sm text-blood">{error}</div>}
 
             {/* ── Main area ── */}
-            <div className="lg:col-span-3 space-y-4">
+            <div className={`lg:col-span-3 space-y-4 ${mobilePanel !== 'chat' ? 'hidden lg:block' : ''}`}>
               <div className="panel glass p-6 rounded-lg">
                 <style>{`
                   @keyframes copy-glow {
@@ -577,13 +578,14 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                         campaignId={campaign.id}
                         isMyTurn={isMyTurn}
                         currentActorName={!isMyTurn ? currentActor?.characterName : null}
+                        turnActive={turnActive}
                       />
                     )
                   })()}
                 </div>
 
-                {/* Chat body */}
-                <div className="p-2" style={{ minHeight: '560px' }}>
+                {/* Chat body — fixed height so it doesn't expand the page */}
+                <div className="p-2" style={{ height: 'clamp(520px, calc(100vh - 300px), 700px)', display: 'flex', flexDirection: 'column' }}>
                   {campaign && (characterLinked === false || campaignStarted === false) ? (
                     <div style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -619,27 +621,38 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
               />
             </div>
 
-            {/* ── Sidebar ── */}
-            <aside className="space-y-4">
-              {/* Map */}
-              <ValdrakMap campaignId={campaign.id} campaignTitle={campaign.title} />
+            {/* ── Sidebar (desktop always visible; mobile per panel) ── */}
+            <aside className={`space-y-4 ${mobilePanel === 'chat' ? 'hidden lg:block' : ''}`}>
+              {/* Map + NPCs — visible on mobile only in 'table' tab */}
+              <div className={mobilePanel !== 'table' ? 'hidden lg:block' : ''}>
+                <ValdrakMap campaignId={campaign.id} campaignTitle={campaign.title} />
+              </div>
+              <div className={mobilePanel !== 'table' ? 'hidden lg:block' : ''}>
+                <NpcPanel campaignId={campaign.id} campaignTitle={campaign.title} />
+              </div>
 
-              {/* NPCs */}
-              <NpcPanel campaignId={campaign.id} campaignTitle={campaign.title} />
-
-              {/* Quests */}
-              <div className="panel glass p-4 rounded-lg">
+              {/* Quests — visible on desktop always; on mobile only in 'quests' or 'table' tab */}
+              <div className={`panel glass p-4 rounded-lg ${mobilePanel !== 'quests' && mobilePanel !== 'table' ? 'hidden lg:block' : ''}`}>
                 <QuestLog campaignId={campaign.id} />
               </div>
 
-              {/* Combat panel — only shown when combat is active */}
-              <CombatPanel campaignId={campaign.id} />
+              {/* Enemy panel */}
+              <div className={mobilePanel !== 'dice' && mobilePanel !== 'table' ? 'hidden lg:block' : ''}>
+                <EnemyPanel campaignId={campaign.id} />
+              </div>
+
+              {/* Combat panel (legacy localStorage) */}
+              <div className={mobilePanel !== 'dice' && mobilePanel !== 'table' ? 'hidden lg:block' : ''}>
+                <CombatPanel campaignId={campaign.id} />
+              </div>
 
               {/* Turn Order */}
-              <TurnOrderPanel
-                campaignId={campaign.id}
-                onTurnStateChange={setTurnState}
-              />
+              <div className={mobilePanel !== 'table' && mobilePanel !== 'dice' ? 'hidden lg:block' : ''}>
+                <TurnOrderPanel
+                  campaignId={campaign.id}
+                  onTurnStateChange={setTurnState}
+                />
+              </div>
 
               {/* Campaign Acts — DESATIVADO temporariamente para estabilização
               <CampaignActsPanel
@@ -832,8 +845,8 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
                 )}
               </div>
 
-              {/* Active character sheet */}
-              <div className="panel glass p-4 rounded-lg sticky top-6">
+              {/* Active character sheet — mobile: hero tab; desktop: always */}
+              <div className={`panel glass p-4 rounded-lg lg:sticky top-6 ${mobilePanel !== 'hero' ? 'hidden lg:block' : ''}`}>
                 <h3 className="font-semibold mb-3">Ficha ativa</h3>
                 {activeCharacter ? (
                   <CharacterSheet character={activeCharacter} />
@@ -843,7 +856,46 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
               </div>
             </aside>
           </div>
+
+          {/* ── Mobile-only: standalone DiceRoller panel ── */}
+          {mobilePanel === 'dice' && campaign && characterLinked !== false && campaignStarted === true && (
+            <div className="lg:hidden mt-4 panel glass p-6 rounded-lg flex flex-col items-center gap-4">
+              <h3 className="font-semibold text-sm" style={{ color: '#d4b16a', fontFamily: 'Cinzel, serif' }}>
+                Consultar os Destinos
+              </h3>
+              {(() => {
+                const myPid = getPlayerId()
+                const turnActive = turnState?.active ?? false
+                const currentActor = turnActive ? (turnState!.turnOrder[turnState!.currentTurnIndex] ?? null) : null
+                const isMyTurn = !turnActive || currentActor?.playerId === myPid
+                return (
+                  <DiceRoller
+                    campaignId={campaign.id}
+                    isMyTurn={isMyTurn}
+                    currentActorName={!isMyTurn ? currentActor?.characterName : null}
+                  />
+                )
+              })()}
+            </div>
+          )}
         </div>
+
+        {/* ── Mobile HUD bottom bar ── */}
+        {campaign && campaignStarted === true && (() => {
+          const myPid = getPlayerId()
+          const turnActive = turnState?.active ?? false
+          const currentActor = turnActive ? (turnState!.turnOrder[turnState!.currentTurnIndex] ?? null) : null
+          const isMyTurn = !turnActive || currentActor?.playerId === myPid
+          return (
+            <MobileGameHud
+              active={mobilePanel}
+              onChange={setMobilePanel}
+              hasTurnActive={turnActive}
+              currentActorName={currentActor?.characterName}
+              isMyTurn={isMyTurn}
+            />
+          )
+        })()}
       </div>
     </FantasyBackground>
   )

@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { createPusherClient } from '../lib/pusher-client'
 import { getPlayerId } from '../lib/storage'
 import type { TurnState, TurnEntry } from '../lib/types'
@@ -29,6 +29,27 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
       .then(data => applyState(data?.active ? data : null))
       .catch(() => {})
   }, [campaignId, applyState])
+
+  // ── Auto-execute enemy turns ─────────────────────────────────────────────
+  const enemyActingRef = useRef(false)
+  useEffect(() => {
+    if (!turnState?.active) return
+    const current = turnState.turnOrder[turnState.currentTurnIndex]
+    if (!current || current.type !== 'enemy' || current.hasActed) return
+    if (enemyActingRef.current) return
+    enemyActingRef.current = true
+
+    // Delay for drama, then execute enemy action
+    const tid = setTimeout(async () => {
+      try {
+        await executeEnemyTurn(campaignId, current, turnState)
+      } finally {
+        enemyActingRef.current = false
+      }
+    }, 1800)
+    return () => { clearTimeout(tid); enemyActingRef.current = false }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [turnState?.currentTurnIndex, turnState?.round, turnState?.active])
 
   // Pusher subscription
   useEffect(() => {
@@ -63,6 +84,26 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
     } finally { setLoading(false) }
   }
 
+  async function skipTurn() {
+    if (!currentEntry || !isMyTurn) return
+    setLoading(true)
+    try {
+      // Post skip message then advance
+      await fetch(`/api/campaigns/${campaignId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          author: 'Sistema',
+          role: 'system',
+          content: `⏩ ${currentEntry.characterName} hesita e guarda sua ação.`,
+        }),
+      }).catch(() => {})
+      const r = await fetch(`/api/campaigns/${campaignId}/turns/next`, { method: 'POST' })
+      const data = await r.json()
+      if (data.active !== undefined) applyState(data.active ? data : null)
+    } finally { setLoading(false) }
+  }
+
   async function endTurns() {
     setLoading(true)
     try {
@@ -75,6 +116,30 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
     ? (turnState.turnOrder[turnState.currentTurnIndex] ?? null)
     : null
   const isMyTurn = !!currentEntry && currentEntry.playerId === myPlayerId
+
+  // ── Turn timer ─────────────────────────────────────────────────────────────
+  const TURN_SECONDS = 60
+  const [timeLeft, setTimeLeft] = useState(TURN_SECONDS)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Reset timer whenever the active actor changes
+  useEffect(() => {
+    setTimeLeft(TURN_SECONDS)
+    if (timerRef.current) clearInterval(timerRef.current)
+    if (!turnState?.active) return
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => Math.max(0, prev - 1))
+    }, 1000)
+    return () => { if (timerRef.current) clearInterval(timerRef.current) }
+  }, [turnState?.active, turnState?.currentTurnIndex, turnState?.round])
+
+  const timerPct   = (timeLeft / TURN_SECONDS) * 100
+  const timerColor = timeLeft <= 10 ? '#ef4444' : timeLeft <= 30 ? '#f59e0b' : '#4ade80'
+  const timerGlow  = timeLeft <= 10
+    ? '0 0 8px rgba(239,68,68,0.45)'
+    : timeLeft <= 30
+    ? '0 0 6px rgba(245,158,11,0.35)'
+    : '0 0 4px rgba(74,222,128,0.2)'
 
   const BTN = {
     base: 'text-xs font-semibold px-3 py-1.5 rounded-lg transition-all',
@@ -126,6 +191,47 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
         </div>
       </button>
 
+      {/* Timer bar — always visible when turns are active */}
+      {turnState?.active && (
+        <div className="px-4 pb-3">
+          {/* Row: time label + warning */}
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold" style={{ color: timerColor, textShadow: timerGlow }}>
+              ⏱ {timeLeft}s
+            </span>
+            {timeLeft <= 10 && timeLeft > 0 && (
+              <span className="text-xs animate-pulse" style={{ color: '#ef4444' }}>
+                ⚠️ O tempo está acabando
+              </span>
+            )}
+            {timeLeft === 0 && (
+              <span className="text-xs" style={{ color: '#ef4444' }}>
+                Tempo esgotado — pule ou aja
+              </span>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          <div
+            style={{
+              width: '100%', height: 5, borderRadius: 3,
+              background: 'rgba(255,255,255,0.06)',
+              overflow: 'hidden',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <div style={{
+              width: `${timerPct}%`,
+              height: '100%',
+              borderRadius: 3,
+              background: timerColor,
+              boxShadow: timerGlow,
+              transition: 'width 1s linear, background 0.5s ease, box-shadow 0.5s ease',
+            }} />
+          </div>
+        </div>
+      )}
+
       {expanded && <div className="px-4 pb-4 space-y-3">
         {/* Turn order list */}
         {turnState?.active && turnState.turnOrder.length > 0 && (
@@ -162,19 +268,23 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
                     {entry.initiative}
                   </span>
 
-                  {/* Character + player */}
+                  {/* Character / Enemy name */}
                   <div className="flex-1 min-w-0">
                     <div
                       className="text-xs font-semibold truncate"
-                      style={{ color: isCurrent ? '#d4b16a' : 'rgba(255,255,255,0.8)' }}
+                      style={{
+                        color: entry.type === 'enemy'
+                          ? (isCurrent ? '#f87171' : 'rgba(248,113,113,0.6)')
+                          : (isCurrent ? '#d4b16a' : 'rgba(255,255,255,0.8)'),
+                      }}
                     >
-                      {entry.characterName}
+                      {entry.type === 'enemy' ? `👹 ${entry.enemyName}` : entry.characterName}
                       {isMe && (
                         <span style={{ color: '#a78bfa', fontSize: '0.6rem', marginLeft: 4 }}>(você)</span>
                       )}
                     </div>
                     <div className="text-xs truncate" style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.6rem' }}>
-                      {entry.playerName}
+                      {entry.type === 'enemy' ? 'inimigo' : entry.playerName}
                     </div>
                   </div>
 
@@ -220,20 +330,21 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
 
           {turnState?.active && (
             <>
+              {/* "Pular ação" — manual escape hatch (auto-advance handles the normal case) */}
               <button
-                onClick={nextTurn}
+                onClick={skipTurn}
                 disabled={loading || !isMyTurn}
                 className={BTN.base}
-                title={!isMyTurn ? 'Aguarde sua vez' : 'Encerrar turno e passar para o próximo'}
+                title={!isMyTurn ? 'Aguarde sua vez' : 'Passar a vez sem realizar ação'}
                 style={{
-                  background: isMyTurn ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.04)',
-                  border: isMyTurn ? '1px solid rgba(74,222,128,0.35)' : '1px solid rgba(255,255,255,0.08)',
-                  color: isMyTurn ? '#4ade80' : 'rgba(255,255,255,0.25)',
+                  background: isMyTurn ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.04)',
+                  border: isMyTurn ? '1px solid rgba(251,191,36,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                  color: isMyTurn ? '#fbbf24' : 'rgba(255,255,255,0.25)',
                   cursor: isMyTurn ? 'pointer' : 'not-allowed',
                   opacity: loading ? 0.5 : 1,
                 }}
               >
-                {loading ? '...' : '⏭️ Encerrar meu turno'}
+                {loading ? '...' : '⏩ Pular ação'}
               </button>
 
               <button
@@ -284,4 +395,103 @@ export default function TurnOrderPanel({ campaignId, onTurnStateChange }: Props)
       </div>}
     </div>
   )
+}
+
+// ── Enemy turn auto-executor ──────────────────────────────────────────────────
+
+async function executeEnemyTurn(campaignId: string, entry: TurnEntry, turnState: TurnState) {
+  // Find a living player character to target
+  const players = turnState.turnOrder.filter(e => (e.type ?? 'player') === 'player')
+  if (!players.length) {
+    await advanceTurn(campaignId)
+    return
+  }
+  const target = players[Math.floor(Math.random() * players.length)]
+  const targetName = target.characterName ?? 'Aventureiro'
+  const enemyName  = entry.enemyName ?? 'Inimigo'
+
+  // Attack roll: d20 + small modifier
+  const d20        = Math.floor(Math.random() * 20) + 1
+  const atkBonus   = 2
+  const totalAtk   = d20 + atkBonus
+
+  // Fetch target character's AC via API
+  let targetAC = 12
+  if (target.characterId) {
+    try {
+      const r = await fetch(`/api/characters/${target.characterId}`)
+      if (r.ok) { const data = await r.json(); targetAC = data.ac ?? 12 }
+    } catch { /* use default */ }
+  }
+
+  const hit = d20 === 20 || (d20 !== 1 && totalAtk >= targetAC)
+  const crit = d20 === 20
+  const miss = d20 === 1
+
+  let msgLines: string[]
+
+  if (miss) {
+    msgLines = [
+      `👹 ${enemyName} tenta atacar ${targetName}!`,
+      `Ataque: d20 ${d20} + ${atkBonus} = **${totalAtk}**`,
+      `💀 Falha crítica! O ataque sai terrivelmente errado.`,
+    ]
+    await postSystemMessage(campaignId, msgLines.join('\n'))
+  } else if (!hit) {
+    msgLines = [
+      `👹 ${enemyName} ataca ${targetName}`,
+      `Ataque: d20 ${d20} + ${atkBonus} = **${totalAtk}**  |  CA ${targetAC}`,
+      `🛡️ Errou — ${targetName} desvia.`,
+    ]
+    await postSystemMessage(campaignId, msgLines.join('\n'))
+  } else {
+    // Roll damage: 1d6 + 1
+    const diceRoll = Math.floor(Math.random() * 6) + 1
+    const dmgBonus = crit ? 2 : 1
+    const dmg      = crit ? (diceRoll + Math.floor(Math.random() * 6) + 1) + dmgBonus : diceRoll + dmgBonus
+
+    msgLines = [
+      `👹 ${enemyName} ataca ${crit ? '🌟 CRÍTICO! ' : ''}${targetName}`,
+      `Ataque: d20 ${d20} + ${atkBonus} = **${totalAtk}**  |  CA ${targetAC}  ✅ Acertou`,
+      `Dano: ${crit ? '2d6' : '1d6'}+${dmgBonus} = **${dmg}**`,
+    ]
+
+    // Apply damage to character
+    if (target.characterId) {
+      try {
+        const r = await fetch(`/api/characters/${target.characterId}/hp`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hpChange: -dmg, reason: `Ataque de ${enemyName}`, campaignId: Number(campaignId) }),
+        })
+        if (r.ok) {
+          const updated = await r.json()
+          const newHp = updated.hp ?? '?'
+          const maxHp = updated.maxHp ?? '?'
+          msgLines.push(`HP de ${targetName}: ${newHp}/${maxHp}${newHp === 0 ? ' ☠️' : ''}`)
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('oraculo:character-updated', {
+              detail: { characterId: String(target.characterId), hp: newHp },
+            }))
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    await postSystemMessage(campaignId, msgLines.join('\n'))
+  }
+
+  await advanceTurn(campaignId)
+}
+
+async function postSystemMessage(campaignId: string, content: string) {
+  await fetch(`/api/campaigns/${campaignId}/messages`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ author: 'Sistema', role: 'system', content }),
+  }).catch(() => {})
+}
+
+async function advanceTurn(campaignId: string) {
+  await fetch(`/api/campaigns/${campaignId}/turns/next`, { method: 'POST' }).catch(() => {})
 }

@@ -1,5 +1,5 @@
 'use client'
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { getMessages, getRemoteMessages, saveMessage, savePendingTest, getCombatState, saveCombatState, getSceneState, saveSceneState, getCampaignMemory, saveCampaignMemory, getPendingTest } from '../lib/storage'
 import { createMessage } from '../lib/api/messages'
 import { fetchCampaignMemory, updateCampaignMemory, initializeCampaignMemory } from '../lib/api/campaigns'
@@ -14,6 +14,7 @@ import { awardCharacterXp } from '../lib/api/characters'
 import { getPlayerId } from '../lib/storage'
 import CombatPanel from './CombatPanel'
 import CampaignIntroPanel from './CampaignIntroPanel'
+import NarrationButton from './NarrationButton'
 
 type ChatBoxProps = {
   campaignId: string
@@ -32,8 +33,86 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
   const [campaignMemory, setCampaignMemory] = useState<CampaignMemory | null>(null)
   const [suggestedActions, setSuggestedActions] = useState<string[]>([])
   const [suggestedActionsMessageId, setSuggestedActionsMessageId] = useState<string | null>(null)
-  const [showIntro, setShowIntro] = useState(false)
+  const [showIntro, setShowIntro]   = useState(false)
   const [isStarting, setIsStarting] = useState(false)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+
+  const messagesEndRef        = useRef<HTMLDivElement>(null)
+  const scrollAreaRef         = useRef<HTMLDivElement>(null)
+  const isFirstLoad           = useRef(true)
+  const turnAdvanceInProgress = useRef(false)
+  const lastNarratedId        = useRef<string | null>(null)   // auto-narration dedup
+
+  // ── Auto-narration (persisted in localStorage) ─────────────────────────────
+  const [autoNarrate, setAutoNarrate] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem('oraculoAutoNarration') === 'true'
+  })
+
+  function toggleAutoNarrate() {
+    setAutoNarrate(prev => {
+      const next = !prev
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem('oraculoAutoNarration', String(next))
+        if (!next) window.speechSynthesis?.cancel()
+      }
+      return next
+    })
+  }
+
+  // ── Auto-scroll ────────────────────────────────────────────────────────────
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    messagesEndRef.current?.scrollIntoView({ behavior, block: 'end' })
+  }, [])
+
+  useEffect(() => {
+    if (messages.length === 0) return
+    if (isFirstLoad.current) {
+      // First load: jump instantly to bottom
+      scrollToBottom('auto')
+      isFirstLoad.current = false
+    } else {
+      scrollToBottom('smooth')
+    }
+  }, [messages, scrollToBottom])
+
+  // ── Auto-narration: speak new master messages ──────────────────────────────
+  useEffect(() => {
+    if (!autoNarrate || isFirstLoad.current) return
+    const masterMsgs = messages.filter(m => m.role === 'master')
+    const last = masterMsgs[masterMsgs.length - 1]
+    if (!last || last.id === lastNarratedId.current) return
+    lastNarratedId.current = last.id
+    if (typeof window === 'undefined' || !window.speechSynthesis) return
+    window.speechSynthesis.cancel()
+    const cleaned = last.content
+      .replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')
+      .replace(/[⚔️💬🔍⚠️🎲✅❌🌟💀💚🗡️💥🛡️⏱⚔]/g, '')
+      .replace(/━+/g, '').trim()
+    if (!cleaned) return
+    const utt = new SpeechSynthesisUtterance(cleaned)
+    utt.lang = 'pt-BR'; utt.rate = 0.95; utt.pitch = 0.85; utt.volume = 1
+    const setVoice = () => {
+      const v = window.speechSynthesis.getVoices().find(v => v.lang === 'pt-BR') ?? null
+      if (v) utt.voice = v
+    }
+    setVoice()
+    if (!utt.voice) window.speechSynthesis.onvoiceschanged = () => { setVoice(); window.speechSynthesis.onvoiceschanged = null }
+    window.speechSynthesis.speak(utt)
+  }, [messages, autoNarrate])
+
+  // Cancel speech on unmount
+  useEffect(() => {
+    return () => { if (typeof window !== 'undefined') window.speechSynthesis?.cancel() }
+  }, [])
+
+  // Show "go to bottom" button when user scrolls up
+  function handleScroll() {
+    const el = scrollAreaRef.current
+    if (!el) return
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    setShowScrollBtn(distFromBottom > 120)
+  }
 
   // Turn state — computed from prop
   const myPlayerId = getPlayerId()
@@ -355,6 +434,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
             campaignMemory,
             pendingTest: existingPendingTest,
             activeQuests,
+            persistentNpcs: await fetch(`/api/campaigns/${campaignId}/npcs`).then(r => r.ok ? r.json() : []).catch(() => []),
           })
         })
 
@@ -613,6 +693,19 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
       }
 
       setIsMasterTyping(false)
+
+      // ── Auto-advance turn after AI responds (if no pending dice roll) ──────
+      if (
+        turnState?.active &&
+        isMyTurn &&
+        !pendingTest &&
+        !turnAdvanceInProgress.current
+      ) {
+        turnAdvanceInProgress.current = true
+        fetch(`/api/campaigns/${campaignId}/turns/next`, { method: 'POST' })
+          .catch(() => {})
+          .finally(() => { turnAdvanceInProgress.current = false })
+      }
     }, delay)
   }
 
@@ -644,7 +737,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
   }
 
   return (
-    <div className="flex flex-col" style={{ minHeight: '560px', height: '100%' }}>
+    <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
       <style>{`
         .narrative-choice {
           background: linear-gradient(135deg, #1c1000 0%, #2a1a00 100%);
@@ -693,51 +786,125 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-3 chat-scroll" style={{ minHeight: 0 }}>
-        {messages.map(m => (
-          <React.Fragment key={m.id}>
-            {m.role === 'system' && m.content.startsWith('⚔️ Ato') ? (
-              <div className="chat-message-act-milestone">
-                <div className="act-label">{m.content}</div>
-                <div className="act-divider" />
-              </div>
-            ) : (
-            <div className={m.role === 'master' ? 'chat-message-master' : m.role === 'system' ? 'chat-message-system' : 'chat-message-player'}>
-              <div className="flex items-center justify-between text-xs mb-1 uppercase tracking-[0.2em] text-muted">
-                <span>
-                  {m.role === 'player' ? (() => {
-                    // Look up character linked to this player
-                    const op = onlinePlayers.find(p => p.playerName === m.author)
-                    const char = op?.characterId ? campaignCharacters.find(c => c.id === op.characterId) : null
-                    return char ? `${char.name} · ${m.author}` : m.author
-                  })() : m.author}
-                </span>
-                <span style={{ opacity: 0.5 }}>{m.role}</span>
-              </div>
-              <div className="text-sm leading-6">{m.content}</div>
-            </div>
-            )}
-            {m.id === suggestedActionsMessageId && suggestedActions.length > 0 && (
-              <div className="flex flex-wrap gap-2 pl-1 pb-1">
-                {suggestedActions.map((action, i) => (
-                  <button
-                    key={i}
-                    className="narrative-choice"
-                    onClick={() => handleSuggestedAction(action)}
-                    disabled={isMasterTyping}
-                  >
-                    {action}
-                  </button>
-                ))}
-              </div>
-            )}
-          </React.Fragment>
-        ))}
+      {/* ── Messages scroll area ─────────────────────────────────────────── */}
+      <div className="relative flex-1" style={{ minHeight: 0 }}>
+        <div
+          ref={scrollAreaRef}
+          onScroll={handleScroll}
+          className="chat-scroll"
+          style={{
+            height: '100%',
+            overflowY: 'auto',
+            padding: '10px 10px 4px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
+        >
+          {messages.map(m => (
+            <React.Fragment key={m.id}>
+              {m.role === 'system' && m.content.startsWith('⚔️ Ato') ? (
+                <div className="chat-message-act-milestone">
+                  <div className="act-label">{m.content}</div>
+                  <div className="act-divider" />
+                </div>
+              ) : (
+                <div
+                  className={m.role === 'master' ? 'chat-message-master' : m.role === 'system' ? 'chat-message-system' : 'chat-message-player'}
+                  style={{ padding: '8px 12px', wordBreak: 'break-word' }}
+                >
+                  <div className="flex items-center justify-between text-xs mb-1 uppercase tracking-[0.2em] text-muted">
+                    <span>
+                      {m.role === 'player' ? (() => {
+                        const op = onlinePlayers.find(p => p.playerName === m.author)
+                        const char = op?.characterId ? campaignCharacters.find(c => c.id === op.characterId) : null
+                        return char ? `${char.name} · ${m.author}` : m.author
+                      })() : m.author}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {m.role === 'master' && (
+                        <NarrationButton text={m.content} compact />
+                      )}
+                      <span style={{ opacity: 0.4, fontSize: '0.6rem' }}>{m.role}</span>
+                    </div>
+                  </div>
+                  <div className="text-sm" style={{ lineHeight: '1.55', whiteSpace: 'pre-wrap' }}>
+                    {m.content}
+                  </div>
+                </div>
+              )}
+              {m.id === suggestedActionsMessageId && suggestedActions.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-1 pb-1">
+                  {suggestedActions.map((action, i) => (
+                    <button
+                      key={i}
+                      className="narrative-choice"
+                      onClick={() => handleSuggestedAction(action)}
+                      disabled={isMasterTyping}
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </React.Fragment>
+          ))}
+
+          {/* Scroll sentinel */}
+          <div ref={messagesEndRef} style={{ height: 1, flexShrink: 0 }} />
+        </div>
+
+        {/* "Go to bottom" button */}
+        {showScrollBtn && (
+          <button
+            onClick={() => scrollToBottom('smooth')}
+            style={{
+              position: 'absolute',
+              bottom: 10,
+              right: 12,
+              zIndex: 10,
+              background: 'rgba(10,8,6,0.92)',
+              border: '1px solid rgba(212,177,106,0.35)',
+              borderRadius: 20,
+              color: '#d4b16a',
+              fontSize: '0.72rem',
+              padding: '5px 14px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+              transition: 'opacity 0.2s',
+            }}
+          >
+            ↓ Última mensagem
+          </button>
+        )}
       </div>
-      <div className="mt-3 flex flex-col gap-3">
+      <div className="mt-2 flex flex-col gap-2">
         {isMasterTyping && (
           <div className="chat-message-master text-sm">O Mestre está narrando...</div>
         )}
+
+        {/* Auto-narration toggle */}
+        <div className="flex justify-end">
+          <button
+            onClick={toggleAutoNarrate}
+            title={autoNarrate ? 'Desativar narração automática' : 'Ativar narração automática do Mestre'}
+            style={{
+              background: autoNarrate ? 'rgba(212,177,106,0.1)' : 'rgba(255,255,255,0.03)',
+              border: autoNarrate ? '1px solid rgba(212,177,106,0.3)' : '1px solid rgba(255,255,255,0.07)',
+              borderRadius: 4,
+              color: autoNarrate ? '#d4b16a' : 'rgba(255,255,255,0.25)',
+              fontSize: '0.6rem',
+              letterSpacing: '0.06em',
+              padding: '2px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            {autoNarrate ? '🔊 Auto-narrar: on' : '🔇 Auto-narrar: off'}
+          </button>
+        </div>
 
         {/* Turn blocker notice */}
         {turnActive && !isMyTurn && currentActor && (
