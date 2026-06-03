@@ -839,6 +839,53 @@ function buildSafeRollRequestNarration(request: AIMasterRequest, rollType: AIMas
   ].join('\n')
 }
 
+type ForcedRoll = {
+  requiresRoll: true
+  rollType: AIMasterResponse['rollType']
+  difficultyClass: number
+  reason: string
+}
+
+function getForcedRollFromPlayerAction(message: string): ForcedRoll | null {
+  const text = message.toLowerCase()
+
+  if (/atacar|ataco|atacar o|golpear|golpeio|bater|acerto|espada|arco|flecha|disparar|lançar magia ofensiva|lancar magia ofensiva|usar ataque|avanço contra|avanco contra|atacar com/.test(text)) {
+    return { requiresRoll: true, rollType: 'ataque', difficultyClass: 14, reason: 'ação ofensiva exige rolagem de ataque' }
+  }
+
+  if (/analisar símbolos|analisar simbolos|decifrar|estudar runas|símbolo|simbolo|runa|runas|magia|arcano/.test(text)) {
+    return { requiresRoll: true, rollType: 'arcano', difficultyClass: 14, reason: 'símbolos, runas ou magia exigem teste arcano' }
+  }
+
+  if (/investigar|examinar|procurar pistas|vasculhar|analisar/.test(text)) {
+    return { requiresRoll: true, rollType: 'investigacao', difficultyClass: 12, reason: 'investigação exige teste' }
+  }
+
+  if (/convencer|persuadir|intimidar|enganar|mentir|negociar|acalmar/.test(text)) {
+    return { requiresRoll: true, rollType: 'carisma', difficultyClass: 14, reason: 'ação social incerta exige teste de carisma' }
+  }
+
+  if (/esconder|fugir|esquivar|saltar|passar sem ser visto/.test(text)) {
+    return { requiresRoll: true, rollType: 'destreza', difficultyClass: 13, reason: 'ação de destreza exige teste' }
+  }
+
+  if (/arrombar|empurrar|quebrar|levantar|segurar/.test(text)) {
+    return { requiresRoll: true, rollType: 'forca', difficultyClass: 13, reason: 'ação de força exige teste' }
+  }
+
+  const analyzed = analyzeAction(message)
+  if (analyzed.requiresTest && analyzed.testType) {
+    return {
+      requiresRoll: true,
+      rollType: analyzed.testType as AIMasterResponse['rollType'],
+      difficultyClass: analyzed.difficulty ?? 13,
+      reason: 'ação detectada exige teste',
+    }
+  }
+
+  return null
+}
+
 function sanitizeRollRequestNarration(request: AIMasterRequest, response: Pick<AIMasterResponse, 'narration' | 'requiresRoll' | 'rollType' | 'difficultyClass'>) {
   if (!response.requiresRoll || response.rollType === 'nenhum') return response.narration
   if (!PRE_ROLL_RESOLUTION_WORDS.test(textWithoutPossibleOutcomeLines(response.narration))) return response.narration
@@ -1215,7 +1262,23 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
     rollType: (parsed.rollType || 'nenhum') as AIMasterResponse['rollType'],
     difficultyClass: parsed.difficultyClass ?? null,
   }
-  responseCore.narration = sanitizeRollRequestNarration(request, responseCore)
+  const forcedRoll = getForcedRollFromPlayerAction(request.playerMessage)
+  if (forcedRoll && process.env.NODE_ENV !== 'production') {
+    console.log('FORCED_ROLL', {
+      playerText: request.playerMessage,
+      forcedRoll,
+      originalRequiresRoll: parsed.requiresRoll,
+      originalRollType: parsed.rollType,
+    })
+  }
+  if (forcedRoll) {
+    responseCore.requiresRoll = true
+    responseCore.rollType = forcedRoll.rollType
+    responseCore.difficultyClass = responseCore.difficultyClass ?? forcedRoll.difficultyClass
+    responseCore.narration = buildSafeRollRequestNarration(request, responseCore.rollType, responseCore.difficultyClass)
+  } else {
+    responseCore.narration = sanitizeRollRequestNarration(request, responseCore)
+  }
 
   return {
     narration:      responseCore.narration,
@@ -1287,6 +1350,7 @@ function buildFallbackMemoryUpdates(campaignMemory: CampaignMemory | null): AIMa
 
 export async function generateFallbackAIMasterResponse(request: AIMasterRequest): Promise<AIMasterResponse> {
   const actionAnalysis = analyzeAction(request.playerMessage)
+  const forcedRoll = getForcedRollFromPlayerAction(request.playerMessage)
   const currentSceneState = request.campaignMemory
     ? sceneStateFromMemory(request.campaignMemory)
     : progressSceneState({
@@ -1309,6 +1373,33 @@ export async function generateFallbackAIMasterResponse(request: AIMasterRequest)
 
   const updatedSceneState = progressSceneState(currentSceneState, request.playerMessage, actionAnalysis.actionType)
   const narrativeResult   = narrateAction(updatedSceneState, request.playerMessage, actionAnalysis.actionType, request.campaignMemory)
+
+  if (forcedRoll) {
+    return {
+      narration: buildSafeRollRequestNarration(request, forcedRoll.rollType, forcedRoll.difficultyClass),
+      requiresRoll: true,
+      rollType: forcedRoll.rollType,
+      difficultyClass: forcedRoll.difficultyClass,
+      suggestedActions: buildFallbackSuggestedActions(
+        actionAnalysis.actionType,
+        updatedSceneState.tensionLevel,
+        updatedSceneState.currentLocation
+      ),
+      questsUpdates: [],
+      memoryUpdates: {
+        currentScene:    updatedSceneState.currentScene,
+        currentLocation: updatedSceneState.currentLocation,
+        currentObjective:updatedSceneState.currentObjective,
+        currentThreat:   updatedSceneState.currentThreat,
+        tensionLevel:    updatedSceneState.tensionLevel,
+        discoveredClues: updatedSceneState.discoveredClues,
+        activeNPCs:      updatedSceneState.activeNPCs,
+        activeEnemies:   updatedSceneState.activeEnemies,
+        storyFlags:      updatedSceneState.storyFlags,
+        summary:         buildMemorySummary(updatedSceneState, request.campaignMemory),
+      },
+    }
+  }
 
   return {
     narration:    narrativeResult.narration,
