@@ -48,6 +48,29 @@ export type AIMasterResponse = {
   }
 }
 
+export type RollResolutionContext = {
+  rollType: AIMasterResponse['rollType']
+  actorName: string
+  targetName?: string | null
+  d20: number
+  attributeLabel: string
+  attributeValue: number
+  total: number
+  difficultyClass: number
+  outcome: 'success' | 'failure' | 'criticalSuccess' | 'criticalFailure'
+  margin: number
+  reason?: string | null
+  damage?: {
+    dice: string
+    rolls: number[]
+    bonus: number
+    total: number
+  } | null
+  targetHpBefore?: number | null
+  targetHpAfter?: number | null
+  targetMaxHp?: number | null
+}
+
 // ─── System prompt ────────────────────────────────────────────────────────────
 
 const MASTER_SYSTEM_PROMPT = `Você é o Mestre de uma campanha de RPG dark fantasy chamada "Oráculo d20". Você É o Mestre — não uma IA, não um assistente, não um chatbot. Nunca revele essa natureza. Nunca quebre o personagem.
@@ -727,7 +750,14 @@ function extractRecentRoll(messages: AIMasterRequest['recentMessages']): string 
   ].filter(Boolean).join('\n')
 }
 
-const PRE_ROLL_RESOLUTION_WORDS = /\b(acertou|acerta|atinge|atingiu|falhou|errou|desviou|desvia|encontrou|encontra|convenceu|convence|intimidou|intimida|abriu|abre|decifrou|decifra)\b/i
+const PRE_ROLL_RESOLUTION_WORDS = /\b(acerta|acertou|atinge|atingiu|corta|cortou|fere|feriu|desvia|desviou|erra|errou|encontra|encontrou|convence|convenceu|intimida|intimidou|abre|abriu|decifra|decifrou|revela|revelou|descobre|descobriu|mata|matou|derrota|derrotou)\b|causa\s+dano/i
+
+function textWithoutPossibleOutcomeLines(text: string) {
+  return text
+    .split('\n')
+    .filter(line => !/^\s*(sucesso|sucesso excepcional|falha|falha crítica|falha critica)\s*:/i.test(line))
+    .join('\n')
+}
 
 function rollLabel(rollType: AIMasterResponse['rollType']) {
   const labels: Record<string, string> = {
@@ -811,7 +841,7 @@ function buildSafeRollRequestNarration(request: AIMasterRequest, rollType: AIMas
 
 function sanitizeRollRequestNarration(request: AIMasterRequest, response: Pick<AIMasterResponse, 'narration' | 'requiresRoll' | 'rollType' | 'difficultyClass'>) {
   if (!response.requiresRoll || response.rollType === 'nenhum') return response.narration
-  if (!PRE_ROLL_RESOLUTION_WORDS.test(response.narration)) return response.narration
+  if (!PRE_ROLL_RESOLUTION_WORDS.test(textWithoutPossibleOutcomeLines(response.narration))) return response.narration
   return buildSafeRollRequestNarration(request, response.rollType, response.difficultyClass)
 }
 
@@ -992,6 +1022,115 @@ function safeParseResponse(text: string) {
   catch { return JSON.parse(cleanJsonText(text)) }
 }
 
+function responseText(response: any): string {
+  return Array.isArray(response.output)
+    ? response.output.map((item: any) => {
+        if (typeof item === 'string') return item
+        if ('content' in item && Array.isArray(item.content)) {
+          return item.content.map((e: any) => e.text || '').join('')
+        }
+        return ''
+      }).join('')
+    : typeof response.output_text === 'string'
+    ? response.output_text
+    : ''
+}
+
+function fallbackRollResolutionNarration(context: RollResolutionContext): string {
+  const target = context.targetName ?? 'o alvo'
+  const damageLines = context.damage
+    ? [
+        '',
+        `🩸 Dano causado: ${context.damage.total}`,
+        context.targetHpBefore != null && context.targetHpAfter != null
+          ? `${target}: ${context.targetHpBefore} HP → ${context.targetHpAfter} HP`
+          : '',
+      ].filter(Boolean)
+    : []
+
+  if (context.outcome === 'criticalFailure') {
+    return [
+      `${context.actorName} força a ação, mas o dado cobra o preço.`,
+      `A tentativa falha de forma perigosa e deixa ${context.actorName} em posição ruim.`,
+      '',
+      'O que você faz agora?',
+    ].join('\n')
+  }
+
+  if (context.outcome === 'failure') {
+    return [
+      `${context.actorName} tenta, mas o resultado não vence a dificuldade.`,
+      context.rollType === 'ataque'
+        ? `${target} evita o golpe e continua ameaçando.`
+        : 'A resposta não vem completa; resta uma pista incompleta e um risco novo.',
+      '',
+      'O que você faz agora?',
+    ].join('\n')
+  }
+
+  const defeated = context.targetHpAfter != null && context.targetHpAfter <= 0
+  return [
+    context.outcome === 'criticalSuccess'
+      ? `${context.actorName} transforma a rolagem em um momento decisivo.`
+      : `${context.actorName} supera a dificuldade por ${context.margin >= 0 ? `margem ${context.margin}` : 'pouco'}.`,
+    context.rollType === 'ataque'
+      ? `${target} sofre a consequência real do golpe.`
+      : 'A ação revela uma consequência concreta no mundo.',
+    ...damageLines,
+    defeated
+      ? `${target} cai derrotado.`
+      : context.targetHpAfter != null
+        ? `${target} ainda está de pé.`
+        : '',
+    '',
+    'Qual é o próximo movimento?',
+  ].filter(Boolean).join('\n')
+}
+
+export async function generateRollResolutionNarration(context: RollResolutionContext): Promise<string> {
+  const client = createOpenAIClient()
+  if (!client) return fallbackRollResolutionNarration(context)
+
+  const prompt = `Narre a consequência de uma rolagem já resolvida no RPG Oráculo d20.
+
+REGRAS:
+- Não recalcule dado.
+- Não invente dano.
+- Não altere HP.
+- Use somente os números recebidos.
+- Se outcome=success, narre sucesso.
+- Se outcome=failure, narre falha com consequência.
+- Se outcome=criticalSuccess, narre momento épico.
+- Se outcome=criticalFailure, narre complicação.
+- Se targetHpAfter <= 0, narre derrota do inimigo.
+- Se targetHpAfter > 0, diga que o inimigo continua de pé.
+- Máximo 3 parágrafos curtos.
+- Inclua linhas de dano/HP quando damage e HP existirem.
+- Termine com uma próxima escolha curta.
+
+Contexto JSON:
+${JSON.stringify(context, null, 2)}
+
+Responda apenas com a narração, sem JSON.`
+
+  try {
+    const result = await client.responses.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.72,
+      top_p: 0.9,
+      input: [
+        { role: 'system', content: 'Você é um Mestre de RPG. Narre apenas consequências de rolagens já resolvidas, sem recalcular ou inventar números.' },
+        { role: 'user', content: prompt },
+      ],
+    })
+
+    const text = responseText(result).trim()
+    return text || fallbackRollResolutionNarration(context)
+  } catch {
+    return fallbackRollResolutionNarration(context)
+  }
+}
+
 // ─── Main generator ────────────────────────────────────────────────────────────
 
 export async function generateAIMasterResponse(request: AIMasterRequest): Promise<AIMasterResponse> {
@@ -1010,17 +1149,7 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
     ],
   })
 
-  const text = Array.isArray(response.output)
-    ? response.output.map((item: any) => {
-        if (typeof item === 'string') return item
-        if ('content' in item && Array.isArray(item.content)) {
-          return item.content.map((e: any) => e.text || '').join('')
-        }
-        return ''
-      }).join('')
-    : typeof response.output_text === 'string'
-    ? response.output_text
-    : ''
+  const text = responseText(response)
 
   const parsed = safeParseResponse(text)
   const mem = request.campaignMemory

@@ -17,6 +17,7 @@ import {
   applyDamage, formatDamageMessage, formatMissMessage, formatEnemyMissMessage,
 } from '../lib/combatDamage'
 import type { CombatState, Message, PendingTest } from '../lib/types'
+import type { RollResolutionContext } from '../lib/aiDungeonMaster'
 
 type DiceRollerProps = {
   campaignId: string
@@ -135,7 +136,22 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
             const txt = critMiss
               ? `💀 Falha crítica! O ataque sai terrivelmente errado.`
               : formatMissMessage(character?.name ?? 'Personagem', dbEnemy.name)
-            await postMaster(campaignId, txt)
+            await postResolvedRollNarration(campaignId, {
+              rollType: 'ataque',
+              actorName: character?.name ?? 'Personagem',
+              targetName: dbEnemy.name,
+              d20,
+              attributeLabel,
+              attributeValue,
+              total,
+              difficultyClass: dbEnemy.armorClass,
+              outcome: rollOutcome({ total, difficultyClass: dbEnemy.armorClass, isCriticalSuccess, isCriticalFail }),
+              margin: total - dbEnemy.armorClass,
+              reason: currentPendingTest.reason,
+              targetHpBefore: dbEnemy.hp,
+              targetHpAfter: dbEnemy.hp,
+              targetMaxHp: dbEnemy.maxHp,
+            }, txt)
           } else {
             const dmgRoll = calculateAttackDamage({ strBonus, critical: critHit })
             const prevHp  = dbEnemy.hp
@@ -148,20 +164,37 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
               body: JSON.stringify({ hpChange: -dmgRoll.totalDamage, reason: `Ataque de ${character?.name ?? 'Personagem'}` }),
             }).catch(() => {})
 
-            await postMaster(
-              campaignId,
-              formatDamageMessage({
+            await postResolvedRollNarration(campaignId, {
+              rollType: 'ataque',
+              actorName: character?.name ?? 'Personagem',
+              targetName: dbEnemy.name,
+              d20,
+              attributeLabel,
+              attributeValue,
+              total,
+              difficultyClass: dbEnemy.armorClass,
+              outcome: rollOutcome({ total, difficultyClass: dbEnemy.armorClass, isCriticalSuccess, isCriticalFail }),
+              margin: total - dbEnemy.armorClass,
+              reason: currentPendingTest.reason,
+              damage: {
+                dice: dmgRoll.formula,
+                rolls: dmgRoll.diceRolls,
+                bonus: dmgRoll.bonus,
+                total: dmgRoll.totalDamage,
+              },
+              targetHpBefore: prevHp,
+              targetHpAfter: newHp,
+              targetMaxHp: dbEnemy.maxHp,
+            }, formatDamageMessage({
                 attackerName: character?.name ?? 'Personagem',
                 targetName: dbEnemy.name,
                 damageRoll: dmgRoll,
                 previousHp: prevHp,
                 newHp,
                 isPlayer: true,
-              })
-            )
+              }))
 
             if (newHp <= 0) {
-              await postMaster(campaignId, `☠️ ${dbEnemy.name} foi derrotado!`)
               // Check if all enemies dead → end turns + distribute XP
               await checkCombatEnd(campaignId, character?.id)
             }
@@ -181,7 +214,18 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
               isCriticalSuccess ? 20 : isCriticalFail ? 1 : total, cd, rollType
             )
             const msg = formatRollMessage(breakdown, cd, outcome, noChar)
-            await postMaster(campaignId, msg)
+            await postResolvedRollNarration(campaignId, {
+              rollType,
+              actorName: character?.name ?? 'Personagem',
+              d20,
+              attributeLabel,
+              attributeValue,
+              total,
+              difficultyClass: cd,
+              outcome: rollOutcome({ total, difficultyClass: cd, isCriticalSuccess, isCriticalFail }),
+              margin,
+              reason: currentPendingTest.reason,
+            }, msg)
           }
           clearPendingTest(campaignId)
           setPending(null)
@@ -202,7 +246,22 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
             const txt = critMiss
               ? `💀 Falha crítica! O ataque sai terrivelmente errado — você se expõe ao contra-ataque.`
               : formatMissMessage(character?.name ?? 'Personagem', enemy.name)
-            await postMaster(campaignId, txt)
+            await postResolvedRollNarration(campaignId, {
+              rollType: 'ataque',
+              actorName: character?.name ?? 'Personagem',
+              targetName: enemy.name,
+              d20,
+              attributeLabel,
+              attributeValue,
+              total,
+              difficultyClass: enemy.armorClass,
+              outcome: rollOutcome({ total, difficultyClass: enemy.armorClass, isCriticalSuccess, isCriticalFail }),
+              margin: total - enemy.armorClass,
+              reason: currentPendingTest.reason,
+              targetHpBefore: enemy.hp,
+              targetHpAfter: enemy.hp,
+              targetMaxHp: enemy.maxHp,
+            }, txt)
           } else {
             // Deal damage
             const dmgRoll = calculateAttackDamage({ strBonus, critical: critHit })
@@ -212,20 +271,37 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
             saveCombatState(combat)
             dispatchCombatUpdated()
 
-            await postMaster(
-              campaignId,
-              formatDamageMessage({
+            await postResolvedRollNarration(campaignId, {
+              rollType: 'ataque',
+              actorName: character?.name ?? 'Personagem',
+              targetName: enemy.name,
+              d20,
+              attributeLabel,
+              attributeValue,
+              total,
+              difficultyClass: enemy.armorClass,
+              outcome: rollOutcome({ total, difficultyClass: enemy.armorClass, isCriticalSuccess, isCriticalFail }),
+              margin: total - enemy.armorClass,
+              reason: currentPendingTest.reason,
+              damage: {
+                dice: dmgRoll.formula,
+                rolls: dmgRoll.diceRolls,
+                bonus: dmgRoll.bonus,
+                total: dmgRoll.totalDamage,
+              },
+              targetHpBefore: prevHp,
+              targetHpAfter: enemy.hp,
+              targetMaxHp: enemy.maxHp,
+            }, formatDamageMessage({
                 attackerName: character?.name ?? 'Personagem',
                 targetName: enemy.name,
                 damageRoll: dmgRoll,
                 previousHp: prevHp,
                 newHp: enemy.hp,
                 isPlayer: true,
-              })
-            )
+              }))
 
             if (enemy.hp <= 0) {
-              await postMaster(campaignId, `☠️ ${enemy.name} foi derrotado! O perigo se dissipa... por enquanto.`)
               clearCombatState(campaignId)
               dispatchCombatUpdated()
               clearPendingTest(campaignId)
@@ -296,7 +372,18 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
           rollType,
         )
         const msg = formatRollMessage(breakdown, cd, outcome, noChar)
-        await postMaster(campaignId, msg)
+        await postResolvedRollNarration(campaignId, {
+          rollType,
+          actorName: character?.name ?? 'Personagem',
+          d20,
+          attributeLabel,
+          attributeValue,
+          total,
+          difficultyClass: cd,
+          outcome: rollOutcome({ total, difficultyClass: cd, isCriticalSuccess, isCriticalFail }),
+          margin,
+          reason: currentPendingTest.reason,
+        }, msg)
         clearPendingTest(campaignId)
         setPending(null)
         autoAdvanceTurnAfterRoll(campaignId, turnActive, isMyTurn, turnAdvanceRef)
@@ -383,6 +470,45 @@ async function postMaster(campaignId: string, content: string) {
   const payload = { author: 'Mestre IA', role: 'master' as const, content }
   const msg = await createMessage(campaignId, payload)
   saveMessage(msg ?? { id: `tmp-${Date.now()}`, campaignId, createdAt: new Date().toISOString(), ...payload })
+}
+
+async function postResolvedRollNarration(
+  campaignId: string,
+  rollResolution: RollResolutionContext,
+  fallback: string
+) {
+  try {
+    const response = await fetch(`/api/campaigns/${campaignId}/resolve-roll`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rollResolution }),
+    })
+    if (response.ok) {
+      const data = await response.json() as { narration?: string }
+      if (data.narration?.trim()) {
+        await postMaster(campaignId, data.narration)
+        return
+      }
+    }
+  } catch { /* fallback below */ }
+
+  await postMaster(campaignId, fallback)
+}
+
+function rollOutcome({
+  total,
+  difficultyClass,
+  isCriticalSuccess,
+  isCriticalFail,
+}: {
+  total: number
+  difficultyClass: number
+  isCriticalSuccess: boolean
+  isCriticalFail: boolean
+}): RollResolutionContext['outcome'] {
+  if (isCriticalSuccess) return 'criticalSuccess'
+  if (isCriticalFail) return 'criticalFailure'
+  return total >= difficultyClass ? 'success' : 'failure'
 }
 
 async function postSystem(campaignId: string, content: string) {
