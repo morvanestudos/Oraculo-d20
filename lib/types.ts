@@ -282,6 +282,15 @@ export type InventoryPatchDTO = {
   targetCharacterId?: string
 }
 
+export type NpcUpdate = {
+  npcName: string
+  mood?: string
+  trustChange?: number
+  fearChange?: number
+  knownInfo?: string
+  lastInteraction?: string
+}
+
 export type AIMasterResponse = {
   narration: string
   requiresRoll: boolean
@@ -289,6 +298,7 @@ export type AIMasterResponse = {
   difficultyClass: number | null
   suggestedActions?: string[]
   questsUpdates?: QuestUpdate[]
+  npcUpdates?: NpcUpdate[]
   inventoryUpdates?: InventoryUpdate[]
   memoryUpdates: {
     currentScene: string

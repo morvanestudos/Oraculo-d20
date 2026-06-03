@@ -1,4 +1,4 @@
-import type { Campaign, Character, Message, CampaignMemory, PendingTest, ActiveNPC, QuestUpdate, Quest, PartyMember, ActingPlayer, Npc } from './types'
+import type { Campaign, Character, Message, CampaignMemory, PendingTest, ActiveNPC, QuestUpdate, Quest, PartyMember, ActingPlayer, Npc, NpcUpdate } from './types'
 import { createOpenAIClient } from './openai'
 import { analyzeAction } from './masterEngine'
 import { narrateAction, progressSceneState, sceneStateFromMemory, buildMemorySummary } from './narrativeEngine'
@@ -23,6 +23,7 @@ export type AIMasterResponse = {
   difficultyClass: number | null
   suggestedActions?: string[]
   questsUpdates?: QuestUpdate[]
+  npcUpdates?: NpcUpdate[]
   inventoryUpdates?: Array<{ action: 'add' | 'remove'; item: { name: string; description?: string; rarity?: string; type?: string } }>
   memoryUpdates: {
     currentScene: string
@@ -125,6 +126,32 @@ Toda resposta DEVE terminar com interação — escolha UMA:
   A última opção SEMPRE deve ser: "Descrever minha própria ação"
 
 Nunca encerre apenas com narrativa. Nunca use as duas opções ao mesmo tempo.
+
+━━ ATUALIZAÇÃO DE RELACIONAMENTO COM NPCs ━━
+Toda interação social significativa com um NPC DEVE gerar npcUpdates.
+
+REGRAS:
+• Jogador gentil / honesto / ajuda o NPC   → trustChange: +1 a +3, fearChange: 0 ou -1
+• Jogador ameaça / intimida / mente mal    → trustChange: -1 a -3, fearChange: +2 a +4
+• Jogador usa força física contra NPC      → fearChange: +3 a +5, trustChange: -3
+• Jogador revela informação útil ao NPC    → trustChange: +1
+• Jogador falha em teste social            → trustChange: -1
+• NPC com trust >= 5 revela informações extras → adicionar knownInfo
+
+LIMITES:
+• trust: clamp entre -10 e 10
+• fear:  clamp entre 0 e 10
+
+FORMAT npcUpdates: array de objetos com:
+  npcName (string, exato como registrado)
+  mood? (novo humor)
+  trustChange? (número positivo ou negativo)
+  fearChange? (número positivo ou negativo)
+  knownInfo? (nova informação que o NPC revelou ou foi descoberta)
+  lastInteraction? (resumo da interação em 1 frase)
+
+Exemplo:
+"npcUpdates": [{"npcName":"Arvik, o Taverneiro","mood":"assustado","trustChange":-2,"fearChange":3,"lastInteraction":"Foi ameaçado ao ser questionado sobre a floresta."}]
 
 ━━ NPCs COM INTENÇÃO ━━
 Todo NPC quer algo. Todo NPC teme algo. Todo NPC sabe algo incompleto.
@@ -399,6 +426,7 @@ Responda APENAS com JSON válido. Sem texto antes ou depois. Sem markdown. Sem \
   "difficultyClass": number | null,
   "suggestedActions": ["string", ...] (2-5 itens; última sempre "Descrever minha própria ação"; ou [] se usar pergunta na narration),
   "questsUpdates": [{"action":"create|update|complete|fail","title":"...","description":"...","progress":"...","reward":"..."}],
+  "npcUpdates": [{"npcName":"...","mood":"...","trustChange":0,"fearChange":0,"knownInfo":"...","lastInteraction":"..."}],
   "inventoryUpdates": [{"action":"add|remove","item":{"name":"...","description":"...","rarity":"...","type":"..."}}],
   "memoryUpdates": {
     "currentScene": "string",
@@ -739,6 +767,20 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
     ? parsed.inventoryUpdates.filter((u: any) => u?.action && u?.item?.name)
     : undefined
 
+  const npcUpdates = Array.isArray(parsed.npcUpdates)
+    ? parsed.npcUpdates
+        .filter((u: any) => typeof u?.npcName === 'string' && u.npcName.trim().length > 0)
+        .map((u: any) => ({
+          npcName: String(u.npcName).trim(),
+          ...(typeof u.mood === 'string' && u.mood.trim() ? { mood: u.mood.trim() } : {}),
+          ...(typeof u.trustChange === 'number' && Number.isFinite(u.trustChange) ? { trustChange: u.trustChange } : {}),
+          ...(typeof u.fearChange === 'number' && Number.isFinite(u.fearChange) ? { fearChange: u.fearChange } : {}),
+          ...(typeof u.knownInfo === 'string' && u.knownInfo.trim() ? { knownInfo: u.knownInfo.trim() } : {}),
+          ...(typeof u.lastInteraction === 'string' && u.lastInteraction.trim() ? { lastInteraction: u.lastInteraction.trim() } : {}),
+        }))
+        .slice(0, 8)
+    : undefined
+
   return {
     narration:      String(parsed.narration || '').trim(),
     requiresRoll:   Boolean(parsed.requiresRoll),
@@ -746,6 +788,7 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
     difficultyClass: parsed.difficultyClass ?? null,
     suggestedActions,
     questsUpdates,
+    npcUpdates,
     inventoryUpdates,
     memoryUpdates: {
       currentScene:    String(parsed.memoryUpdates?.currentScene    || mem?.currentScene    || 'início da aventura'),

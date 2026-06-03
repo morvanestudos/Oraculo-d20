@@ -7,11 +7,12 @@ import { createPusherClient } from '../lib/pusher-client'
 import { analyzeAction, generateTestOutcomeMessage } from '../lib/masterEngine'
 import { detectHealingAction, rollHealing, applyHeal, formatHealMessage } from '../lib/healingSystem'
 import { initializeSceneState, sceneStateFromMemory, progressSceneState, narrateAction, buildMasterMessage, buildMemorySummary } from '../lib/narrativeEngine'
-import type { Message, Campaign, Character, CampaignPlayer, PendingTest, CampaignMemory, AIMasterResponse, PartyMember, TurnState } from '../lib/types'
+import type { Message, Campaign, Character, CampaignPlayer, PendingTest, CampaignMemory, AIMasterResponse, PartyMember, TurnState, Npc } from '../lib/types'
 import { fetchQuests, processQuestUpdates } from '../lib/api/quests'
 import { awardCharacterXp } from '../lib/api/characters'
 // import { getCampaignActs, detectCampaignAct } from '../lib/campaignActs'  // DESATIVADO temporariamente
 import { getPlayerId } from '../lib/storage'
+import { applyNpcUpdate, buildRelationshipMessage } from '../lib/npcSystem'
 import CombatPanel from './CombatPanel'
 import CampaignIntroPanel from './CampaignIntroPanel'
 import NarrationButton from './NarrationButton'
@@ -24,6 +25,55 @@ type ChatBoxProps = {
   onlinePlayers?: CampaignPlayer[]
   campaignCharacters?: Character[]
   turnState?: TurnState | null
+}
+
+type RelationshipNpc = Pick<Npc, 'id' | 'name' | 'trust' | 'fear' | 'knownInfo'>
+
+function normalizeNpcName(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .replace(/\s+/g, ' ')
+}
+
+function findNpcForUpdate(npcs: RelationshipNpc[], npcName: string) {
+  const targetLower = npcName.trim().toLowerCase()
+  const exact = npcs.find(n => n.name.trim().toLowerCase() === targetLower)
+  if (exact) return exact
+
+  const targetNorm = normalizeNpcName(npcName)
+  const normalized = npcs.find(n => {
+    const fullName = normalizeNpcName(n.name)
+    const shortName = normalizeNpcName(n.name.split(',')[0] ?? n.name)
+    return fullName === targetNorm || shortName === targetNorm
+  })
+  if (normalized) return normalized
+
+  if (targetNorm.length < 4) return null
+
+  const partialMatches = npcs.filter(n => {
+    const fullName = normalizeNpcName(n.name)
+    const shortName = normalizeNpcName(n.name.split(',')[0] ?? n.name)
+    if (shortName.length >= 4 && (shortName.includes(targetNorm) || targetNorm.includes(shortName))) return true
+    if (targetNorm.length >= 6 && fullName.includes(targetNorm)) return true
+    return false
+  })
+
+  return partialMatches.length === 1 ? partialMatches[0] : null
+}
+
+function mergeKnownInfo(current: string | null | undefined, incoming: string | null | undefined) {
+  const next = incoming?.trim()
+  if (!next) return current ?? null
+
+  const existing = current?.trim()
+  if (!existing) return next
+
+  if (normalizeNpcName(existing).includes(normalizeNpcName(next))) return existing
+  return `${existing}\n${next}`
 }
 
 export default function ChatBox({ campaignId, campaign, character, playerName, onlinePlayers = [], campaignCharacters = [], turnState }: ChatBoxProps) {
@@ -605,6 +655,43 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
         const finalId = createdMasterMessage?.id ?? tempMasterMessage.id
         setSuggestedActionsMessageId(finalId)
         setSuggestedActions(actions)
+      }
+
+      // ── Process NPC relationship updates ────────────────────────────────────
+      if (aiResponse.npcUpdates && aiResponse.npcUpdates.length > 0) {
+        try {
+          const npcList: RelationshipNpc[] =
+            await fetch(`/api/campaigns/${campaignId}/npcs`).then(r => r.ok ? r.json() : []).catch(() => [])
+
+          for (const upd of aiResponse.npcUpdates) {
+            if (!upd?.npcName) continue
+
+            const npc = findNpcForUpdate(npcList, upd.npcName)
+            if (!npc) continue
+
+            const patch = applyNpcUpdate(npc as any, upd)
+            if (upd.knownInfo) {
+              const knownInfo = mergeKnownInfo(npc.knownInfo, upd.knownInfo)
+              if (knownInfo) patch.knownInfo = knownInfo
+            }
+
+            if (Object.keys(patch).length === 0) continue
+
+            await fetch(`/api/npcs/${npc.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(patch),
+            }).catch(() => {})
+
+            // Post relationship feedback for strong changes
+            const relMsg = buildRelationshipMessage(npc.name, upd)
+            if (relMsg) {
+              createMessage(campaignId, { author: 'Sistema', role: 'system', content: relMsg }).catch(() => {})
+            }
+          }
+        } catch (e) {
+          console.warn('ChatBox: falha ao processar npcUpdates', e)
+        }
       }
 
       if (aiResponse.questsUpdates && aiResponse.questsUpdates.length > 0) {
