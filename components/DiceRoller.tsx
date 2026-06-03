@@ -1,233 +1,190 @@
 "use client"
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import D20DiceCss from './D20DiceCss'
-import { saveMessage, getPendingTest, clearPendingTest, getCombatState, saveCombatState, clearCombatState, getActiveCharacter } from '../lib/storage'
+import { saveMessage, getPendingTest, clearPendingTest, getCombatState, saveCombatState, clearCombatState } from '../lib/storage'
 import { createMessage } from '../lib/api/messages'
 import { generateTestOutcomeMessage } from '../lib/masterEngine'
-import type { CombatState } from '../lib/types'
-import type { Message } from '../lib/types'
+import type { CombatState, Message, PendingTest } from '../lib/types'
 
 type DiceRollerProps = {
   campaignId: string
 }
 
-export default function DiceRoller({ campaignId }: DiceRollerProps) {
-  const [last, setLast] = useState<number | null>(null)
-  const [rolling, setRolling] = useState(false)
+// Human-readable labels for each roll type
+const ROLL_LABELS: Record<string, string> = {
+  ataque:      'Ataque',
+  investigacao: 'Investigação',
+  percepcao:   'Percepção',
+  carisma:     'Carisma',
+  destreza:    'Destreza',
+  forca:       'Força',
+  arcano:      'Arcano',
+  cura:        'Cura',
+  sabedoria:   'Sabedoria',
+  geral:       'Geral',
+}
 
-  function roll() {
+export default function DiceRoller({ campaignId }: DiceRollerProps) {
+  const [last, setLast]         = useState<number | null>(null)
+  const [rolling, setRolling]   = useState(false)
+  const [pending, setPending]   = useState<PendingTest | null>(null)
+
+  // Poll localStorage every second so the badge appears as soon as ChatBox saves a pendingTest
+  useEffect(() => {
+    const check = () => setPending(getPendingTest(campaignId))
+    check()
+    const id = setInterval(check, 1000)
+    return () => clearInterval(id)
+  }, [campaignId])
+
+  async function roll() {
+    if (rolling) return
     setRolling(true)
     const v = Math.floor(Math.random() * 20) + 1
+
     setTimeout(async () => {
       setLast(v)
       setRolling(false)
-      console.log('DiceRoller: rolagem d20:', v)
-      const tempSystemMessage: Message = {
-        id: `temp-${Date.now()}`,
-        campaignId,
+
+      // Post roll result as system message (visible to everyone via Pusher)
+      const rollMsg = {
         author: 'Sistema',
-        role: 'system',
-        content: `Rolagem d20: ${v}`,
-        createdAt: new Date().toISOString()
+        role: 'system' as const,
+        content: `🎲 Rolagem d20: **${v}**${pending ? ` — ${ROLL_LABELS[pending.type] ?? pending.type} CD ${pending.difficultyClass}` : ''}`,
       }
-      setLast(v)
-      saveMessage(tempSystemMessage)
-      const createdSystemMessage = await createMessage(campaignId, {
-        author: tempSystemMessage.author,
-        role: tempSystemMessage.role,
-        content: tempSystemMessage.content
-      })
-      const systemMessage = createdSystemMessage ?? tempSystemMessage
-      if (createdSystemMessage) {
-        saveMessage(createdSystemMessage)
+      const created = await createMessage(campaignId, rollMsg)
+      saveMessage(created ?? { id: `tmp-${Date.now()}`, campaignId, createdAt: new Date().toISOString(), ...rollMsg })
+
+      const currentPending = getPendingTest(campaignId)
+      if (!currentPending) {
+        setPending(null)
+        return
       }
 
-      const pendingTest = getPendingTest(campaignId)
-      if (pendingTest) {
-        console.log('DiceRoller: pendingTest encontrado:', pendingTest)
+      // ── Combat attack ───────────────────────────────────────────────────────
+      if (currentPending.type === 'ataque') {
+        const combat = getCombatState(campaignId) as CombatState | null
+        if (combat) {
+          const enemy  = combat.combatants.find(c => c.type === 'enemy' && c.hp > 0)
+          const player = combat.combatants.find(c => c.type === 'player')
 
-        if (pendingTest.type === 'ataque') {
-          const combat = getCombatState(campaignId) as CombatState | null
-          if (combat) {
-            const enemy = combat.combatants.find(c => c.type === 'enemy' && c.hp > 0)
-            const player = combat.combatants.find(c => c.type === 'player')
-
+          if (!enemy) {
+            await postMaster(campaignId, 'Não há inimigos válidos para atacar.')
+          } else {
             let attackText = ''
-
-            if (!enemy) {
-              attackText = 'Não há inimigos válidos para atacar.'
+            if (v === 20) {
+              const dmg = (Math.floor(Math.random() * 8) + 1 + 2) * 2
+              enemy.hp = Math.max(0, enemy.hp - dmg)
+              attackText = `Acerto crítico! Você desfere um golpe devastador causando ${dmg} de dano em ${enemy.name}.`
+            } else if (v === 1) {
+              attackText = 'Falha crítica! Seu ataque sai terrivelmente errado — você se expõe.'
+            } else if (v >= enemy.armorClass) {
+              const dmg = Math.floor(Math.random() * 8) + 1 + 2
+              enemy.hp = Math.max(0, enemy.hp - dmg)
+              attackText = `Acertou ${enemy.name} e causou ${dmg} de dano.`
             } else {
-              if (v === 20) {
-                const base = Math.floor(Math.random() * 8) + 1 + 2
-                const dmg = base * 2
-                enemy.hp = Math.max(0, enemy.hp - dmg)
-                attackText = `Acerto crítico! Você causa ${dmg} de dano em ${enemy.name}.`
-              } else if (v === 1) {
-                attackText = 'Falha crítica! Seu ataque sai terrivelmente errado.'
-              } else if (v >= enemy.armorClass) {
-                const dmg = Math.floor(Math.random() * 8) + 1 + 2
-                enemy.hp = Math.max(0, enemy.hp - dmg)
-                attackText = `Acertou ${enemy.name} e causou ${dmg} de dano.`
-              } else {
-                attackText = `Seu ataque erra ${enemy.name}.`
-              }
+              attackText = `Seu ataque erra — ${enemy.name} esquiva ou bloqueia.`
+            }
 
-              const logEntry = {
-                id: `log-${Date.now()}`,
-                combatId: combat.id,
-                text: `Jogador ataca: ${attackText}`,
-                createdAt: new Date().toISOString()
+            combat.logs.push({ id: `log-${Date.now()}`, combatId: combat.id, text: attackText, createdAt: new Date().toISOString() })
+            saveCombatState(combat)
+            await postMaster(campaignId, attackText)
+
+            if (enemy.hp <= 0) {
+              await postMaster(campaignId, `${enemy.name} foi derrotado! O perigo se dissipa... por enquanto.`)
+              clearCombatState(campaignId)
+              clearPendingTest(campaignId)
+              setPending(null)
+              return
+            }
+
+            // Enemy counterattack
+            if (player) {
+              const eRoll = Math.floor(Math.random() * 20) + 1
+              let eText = ''
+              if (eRoll === 20) {
+                const dmg = (Math.floor(Math.random() * 6) + 1 + 1) * 2
+                player.hp = Math.max(0, player.hp - dmg)
+                eText = `${enemy.name} contra-ataca com um golpe crítico causando ${dmg} de dano!`
+              } else if (eRoll === 1) {
+                eText = `${enemy.name} falha miseravelmente no contra-ataque.`
+              } else if (eRoll >= player.armorClass) {
+                const dmg = Math.floor(Math.random() * 6) + 1 + 1
+                player.hp = Math.max(0, player.hp - dmg)
+                eText = `${enemy.name} contra-ataca e causa ${dmg} de dano em ${player.name}.`
+              } else {
+                eText = `${enemy.name} tenta revidar, mas erra.`
               }
-              combat.logs = [...combat.logs, logEntry]
+              combat.logs.push({ id: `log-${Date.now()}-e`, combatId: combat.id, text: eText, createdAt: new Date().toISOString() })
               saveCombatState(combat)
+              await postMaster(campaignId, eText)
 
-              const atkPayload = {
-                author: 'Mestre IA',
-                role: 'master' as const,
-                content: `Teste de ${pendingTest.reason} (CD ${pendingTest.difficultyClass}) resultou em ${v}. ${attackText}`
-              }
-              const atkMessage = await createMessage(campaignId, atkPayload)
-              if (atkMessage) {
-                saveMessage(atkMessage)
-              } else {
-                saveMessage({
-                  id: `temp-${Date.now()}-attack`,
-                  campaignId,
-                  author: atkPayload.author,
-                  role: atkPayload.role,
-                  content: atkPayload.content,
-                  createdAt: new Date().toISOString()
-                })
-              }
-
-              if (enemy.hp <= 0) {
-                const winPayload = {
-                  author: 'Mestre IA',
-                  role: 'master' as const,
-                  content: `${enemy.name} foi derrotado! Você vence o combate.`
-                }
-                const winMessage = await createMessage(campaignId, winPayload)
-                if (winMessage) {
-                  saveMessage(winMessage)
-                } else {
-                  saveMessage({
-                    id: `temp-${Date.now()}-win`,
-                    campaignId,
-                    author: winPayload.author,
-                    role: winPayload.role,
-                    content: winPayload.content,
-                    createdAt: new Date().toISOString()
-                  })
-                }
+              if (player.hp <= 0) {
+                await postMaster(campaignId, `${player.name} cai em combate... O silêncio é pesado.`)
                 clearCombatState(campaignId)
-                clearPendingTest(campaignId)
-                return
-              }
-
-              if (player) {
-                const enemyRoll = Math.floor(Math.random() * 20) + 1
-                let enemyText = ''
-                if (enemyRoll === 20) {
-                  const dmg = (Math.floor(Math.random() * 6) + 1 + 1) * 2
-                  player.hp = Math.max(0, player.hp - dmg)
-                  enemyText = `${enemy.name} acerta um crítico e causa ${dmg} de dano em ${player.name}.`
-                } else if (enemyRoll === 1) {
-                  enemyText = `${enemy.name} falha miseravelmente.`
-                } else if (enemyRoll >= player.armorClass) {
-                  const dmg = Math.floor(Math.random() * 6) + 1 + 1
-                  player.hp = Math.max(0, player.hp - dmg)
-                  enemyText = `${enemy.name} ataca e causa ${dmg} de dano em ${player.name}.`
-                } else {
-                  enemyText = `${enemy.name} erra o ataque em ${player.name}.`
-                }
-
-                const elog = {
-                  id: `log-${Date.now()}-e`,
-                  combatId: combat.id,
-                  text: `Inimigo: ${enemyText}`,
-                  createdAt: new Date().toISOString()
-                }
-                combat.logs = [...combat.logs, elog]
-                saveCombatState(combat)
-
-                const enemyPayload = {
-                  author: 'Mestre IA',
-                  role: 'master' as const,
-                  content: enemyText
-                }
-                const enemyMsg = await createMessage(campaignId, enemyPayload)
-                if (enemyMsg) {
-                  saveMessage(enemyMsg)
-                } else {
-                  saveMessage({
-                    id: `temp-${Date.now()}-enemy`,
-                    campaignId,
-                    author: enemyPayload.author,
-                    role: enemyPayload.role,
-                    content: enemyPayload.content,
-                    createdAt: new Date().toISOString()
-                  })
-                }
-
-                if (player.hp <= 0) {
-                  const deathPayload = {
-                    author: 'Mestre IA',
-                    role: 'master' as const,
-                    content: `${player.name} cai em combate...`
-                  }
-                  const deathMsg = await createMessage(campaignId, deathPayload)
-                  if (deathMsg) {
-                    saveMessage(deathMsg)
-                  } else {
-                    saveMessage({
-                      id: `temp-${Date.now()}-death`,
-                      campaignId,
-                      author: deathPayload.author,
-                      role: deathPayload.role,
-                      content: deathPayload.content,
-                      createdAt: new Date().toISOString()
-                    })
-                  }
-                  clearCombatState(campaignId)
-                  clearPendingTest(campaignId)
-                  return
-                }
-
-                saveCombatState(combat)
               }
             }
-            clearPendingTest(campaignId)
-            return
           }
+          clearPendingTest(campaignId)
+          setPending(null)
+          return
         }
-
-        const outcome = generateTestOutcomeMessage(v, pendingTest.difficultyClass)
-        const rollPayload = {
-          author: 'Mestre IA',
-          role: 'master' as const,
-          content: `Teste de ${pendingTest.reason} (CD ${pendingTest.difficultyClass}) resultou em ${v}. ${outcome}`
-        }
-        const resultMessage = await createMessage(campaignId, rollPayload)
-        if (resultMessage) {
-          saveMessage(resultMessage)
-        } else {
-          saveMessage({
-            id: `temp-${Date.now()}-roll`,
-            campaignId,
-            author: rollPayload.author,
-            role: rollPayload.role,
-            content: rollPayload.content,
-            createdAt: new Date().toISOString()
-          })
-        }
-        clearPendingTest(campaignId)
-      } else {
-        console.log('DiceRoller: sem pendingTest para campanha', campaignId)
       }
+
+      // ── Generic test ────────────────────────────────────────────────────────
+      const outcome = generateTestOutcomeMessage(v, currentPending.difficultyClass, currentPending.type)
+      const margin  = v - currentPending.difficultyClass
+      const marginTxt = v >= currentPending.difficultyClass
+        ? `(+${margin} acima da CD)`
+        : `(${margin} abaixo da CD)`
+      const label = ROLL_LABELS[currentPending.type] ?? currentPending.type
+
+      await postMaster(
+        campaignId,
+        `Teste de ${label} — rolou ${v} ${marginTxt}. ${outcome}`
+      )
+      clearPendingTest(campaignId)
+      setPending(null)
     }, 700)
   }
 
+  const label = pending ? ROLL_LABELS[pending.type] ?? pending.type : null
+
   return (
-    <D20DiceCss result={last} rolling={rolling} onRoll={roll} />
+    <div className="flex flex-col items-center gap-2">
+      {/* Pending test badge */}
+      {pending && (
+        <div
+          className="text-xs px-3 py-1.5 rounded-lg text-center animate-pulse"
+          style={{
+            background: 'rgba(239,68,68,0.12)',
+            border: '1px solid rgba(239,68,68,0.35)',
+            color: '#f87171',
+            fontWeight: 600,
+            letterSpacing: '0.05em',
+            minWidth: '120px',
+          }}
+        >
+          <div style={{ fontSize: '0.55rem', textTransform: 'uppercase', opacity: 0.7, marginBottom: 1 }}>
+            Teste pendente
+          </div>
+          <div>{label} CD {pending.difficultyClass}</div>
+        </div>
+      )}
+
+      <D20DiceCss
+        result={last}
+        rolling={rolling}
+        onRoll={roll}
+        highlight={!!pending}
+      />
+    </div>
   )
+}
+
+// ── Helper ──────────────────────────────────────────────────────────────────
+async function postMaster(campaignId: string, content: string) {
+  const payload = { author: 'Mestre IA', role: 'master' as const, content }
+  const msg = await createMessage(campaignId, payload)
+  saveMessage(msg ?? { id: `tmp-${Date.now()}`, campaignId, createdAt: new Date().toISOString(), ...payload })
 }

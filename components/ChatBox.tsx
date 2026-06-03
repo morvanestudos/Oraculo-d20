@@ -156,6 +156,10 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
   }
 
   async function sendMessage(content: string) {
+    // Clear previous suggested actions when player sends a new message
+    setSuggestedActions([])
+    setSuggestedActionsMessageId(null)
+
     const tempId = `temp-${Date.now()}`
     const playerMessage: Message = {
       id: tempId,

@@ -6,9 +6,10 @@ type Props = {
   result?: number | null
   rolling?: boolean
   onRoll?: () => void
+  highlight?: boolean
 }
 
-export default function D20DiceCss({ result, rolling, onRoll }: Props) {
+export default function D20DiceCss({ result, rolling, onRoll, highlight }: Props) {
   const label =
     result === 20 ? '⚡ Sucesso Espetacular!' :
     result === 1  ? '💀 Falha Crítica!' :
@@ -81,9 +82,16 @@ export default function D20DiceCss({ result, rolling, onRoll }: Props) {
         onClick={onRoll}
         disabled={rolling}
         className="dice-button"
-        style={{ opacity: rolling ? 0.65 : 1, cursor: rolling ? 'not-allowed' : 'pointer' }}
+        style={{
+          opacity: rolling ? 0.65 : 1,
+          cursor: rolling ? 'not-allowed' : 'pointer',
+          ...(highlight && !rolling ? {
+            boxShadow: '0 0 16px rgba(239,68,68,0.5), 0 0 32px rgba(239,68,68,0.2)',
+            background: 'linear-gradient(135deg, #dc2626, #7c3aed)',
+          } : {}),
+        }}
       >
-        {rolling ? 'Consultando o oráculo…' : 'Consultar os Destinos'}
+        {rolling ? 'Consultando o oráculo…' : highlight ? '🎲 Rolar Dado — Teste Pendente' : 'Consultar os Destinos'}
       </button>
 
       {label && !rolling && (
