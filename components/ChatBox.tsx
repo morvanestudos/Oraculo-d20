@@ -449,6 +449,9 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
             title: q.title,
             description: q.description,
             progress: q.progress,
+            objectiveList: q.objectiveList ?? null,
+            objectives: q.objectives,
+            branchKey: q.branchKey ?? null,
           }))
         ).catch(() => [])
 
@@ -696,7 +699,21 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
 
       if (aiResponse.questsUpdates && aiResponse.questsUpdates.length > 0) {
         try {
-          await processQuestUpdates(campaignId, aiResponse.questsUpdates)
+          const questEvents = await processQuestUpdates(campaignId, aiResponse.questsUpdates)
+          for (const event of questEvents.slice(0, 2)) {
+            const questMsg: Message = {
+              id: `msg-${Date.now()}-quest-${Math.random().toString(36).slice(2)}`,
+              campaignId,
+              author: 'Sistema',
+              role: 'system',
+              content: event.message,
+              createdAt: new Date().toISOString(),
+            }
+            setMessages(prev => [...prev, questMsg])
+            createMessage(campaignId, { author: questMsg.author, role: questMsg.role, content: questMsg.content })
+              .then(m => { if (m) saveMessage(m) })
+              .catch(() => {})
+          }
 
           // Award XP for each completed quest
           const completedQuests = aiResponse.questsUpdates.filter(u => u.action === 'complete')

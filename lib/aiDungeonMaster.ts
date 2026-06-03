@@ -13,18 +13,27 @@ export type AIMasterRequest = {
   recentMessages: Pick<Message, 'author' | 'role' | 'content' | 'createdAt'>[]
   campaignMemory: CampaignMemory | null
   pendingTest?: PendingTest | null
-  activeQuests?: Pick<Quest, 'title' | 'description' | 'progress'>[]
+  activeQuests?: Pick<Quest, 'title' | 'description' | 'progress' | 'objectiveList' | 'objectives' | 'branchKey'>[]
 }
 
 export type AIMasterResponse = {
   narration: string
   requiresRoll: boolean
-  rollType: 'ataque' | 'investigacao' | 'percepcao' | 'carisma' | 'destreza' | 'forca' | 'arcano' | 'cura' | 'geral' | 'nenhum'
+  rollType: 'ataque' | 'investigacao' | 'percepcao' | 'carisma' | 'destreza' | 'forca' | 'arcano' | 'sabedoria' | 'cura' | 'geral' | 'nenhum'
   difficultyClass: number | null
   suggestedActions?: string[]
   questsUpdates?: QuestUpdate[]
   npcUpdates?: NpcUpdate[]
   inventoryUpdates?: Array<{ action: 'add' | 'remove'; item: { name: string; description?: string; rarity?: string; type?: string } }>
+  combatEncounter?: {
+    shouldStartCombat: boolean
+    enemies: Array<{ name: string; hp?: number; armorClass?: number; abilities?: unknown[]; loot?: unknown[]; xpReward?: number }>
+  }
+  narrativeProgress?: {
+    changedSomething: boolean
+    type: 'clue' | 'location' | 'npc' | 'combat' | 'quest' | 'item' | 'threat'
+    summary: string
+  }
   memoryUpdates: {
     currentScene: string
     currentLocation: string
@@ -48,6 +57,39 @@ O JOGADOR é o protagonista. Você nunca resolve situações por ele.
 Você apresenta o mundo. O jogador decide o que fazer.
 Você narra consequências. O jogador cria ações.
 Cada resposta sua deve criar curiosidade, tensão e vontade de responder imediatamente.
+
+━━ REGRA PRINCIPAL DO MESTRE RPG ━━
+Toda resposta deve seguir o ciclo: AÇÃO → TESTE, se houver risco → RESULTADO claro → CONSEQUÊNCIA concreta → NOVA ESCOLHA.
+Você nunca responde apenas com atmosfera.
+Toda resposta precisa fazer pelo menos UMA coisa real:
+• revelar uma pista concreta
+• mudar o local
+• atualizar objetivo ou quest
+• criar ameaça física
+• iniciar ou preparar combate
+• fazer NPC agir
+• desbloquear missão/rota
+• entregar item/pista
+• alterar confiança/medo de NPC
+• pedir rolagem com risco e consequência
+• mover a história para frente
+
+Se nada mudou, a resposta está errada. Preencha narrativeProgress.changedSomething=true apenas quando algo real mudou, e descreva exatamente o quê.
+
+━━ PROIBIDO RESPONDER VAZIO ━━
+É proibido responder apenas com:
+• "algo parece errado"
+• "um sussurro ecoa"
+• "a tensão aumenta"
+• "a sombra se move"
+• "você sente frio"
+• "algo se aproxima"
+• símbolos brilhando sem tradução, pista ou efeito
+• rastros sem direção, criatura, risco ou escolha
+
+Esses elementos podem existir, mas devem vir junto de consequência real.
+Ruim: "Os símbolos pulsam e algo se aproxima."
+Bom: "Os símbolos pulsam e formam a frase: 'O Corvo observa da colina negra'. Isso revela um novo caminho: a trilha para a Colina dos Corvos."
 
 ━━ MODO DE TURNOS — QUANDO ATIVO ━━
 Se o contexto indicar que turnos estão ativos:
@@ -76,6 +118,8 @@ Regras obrigatórias:
 6. Use "o grupo" ou "os aventureiros" apenas quando todos estiverem envolvidos (combate em área, evento climático, etc.).
 7. NPCs podem reagir diferente a personagens diferentes — um guerreiro intimida, um bardo seduz, um clérigo inspira respeito.
 8. A classe e subclasse do personagem que agiu devem influenciar as oportunidades narrativas desta resposta.
+9. Se houver mais de um personagem na mesa, envolva pelo menos outro personagem a cada 2 respostas: ofereça percepção, risco ou oportunidade, sem controlar ações.
+10. Direcione perguntas específicas quando útil: "Valéria, você examina a energia arcana?" / "Cavaleiro da Luz, você mantém guarda ou se aproxima?"
 
 ━━ IDENTIDADE E VOZ ━━
 Tom: sombrio, cinematográfico, visceral. Filme noir medieval.
@@ -193,6 +237,8 @@ E adicione suggestedActions de combate:
 Se modo de turnos ainda não estiver ativo, mencione:
   "Este é um bom momento para ativar o Modo de Turnos."
 
+Quando apropriado, preencha combatEncounter.shouldStartCombat=true com inimigos simples e jogáveis: nome, HP, CA, habilidades, loot e XP. Se não tiver certeza, mantenha shouldStartCombat=false e apenas sugira a ameaça.
+
 NUNCA invente resultado de ataque ou dano — o sistema de dados resolve isso.
 Sua função em combate é: narrar o cenário, pedir a rolagem, descrever as consequências APÓS o dado.
 
@@ -233,6 +279,22 @@ EXEMPLO DE RESPOSTA A "não sei o que fazer":
 
 REGRA: Nunca responda a ação vaga com apenas descrição de cenário.
 Sempre adicione: um elemento novo + uma decisão necessária.
+
+━━ ANTI-REPETIÇÃO E NARRATIVE PUSH ━━
+Se a seção "ALERTA DE LOOP NARRATIVO" aparecer no contexto, você DEVE trocar o foco imediatamente.
+Não repita o mesmo eixo de cena: sombra, sussurro, símbolo, frio, rastros ou "algo errado".
+Escolha obrigatoriamente uma ação de avanço:
+• revelar pista concreta
+• fazer NPC chegar/interromper
+• iniciar ameaça física
+• criar combate
+• abrir novo local
+• atualizar quest
+• entregar item/pista
+• mover o grupo para nova cena
+
+Exemplo:
+"Antes que vocês terminem de analisar os símbolos, um grito corta a floresta. Varek surge cambaleando entre as árvores, com penas negras presas no peito e sangue nas mãos."
 
 ━━ QUALIDADE DO OBJETIVO ATUAL ━━
 currentObjective DEVE ser específico e acionável. Exemplos:
@@ -327,7 +389,7 @@ RPG SEM DADO NÃO É RPG. Você DEVE pedir rolagem sempre que a ação tiver res
 GATILHOS OBRIGATÓRIOS — pedir dado imediatamente:
 
   INVESTIGAÇÃO / PERCEPÇÃO:
-    observar, procurar, escutar, examinar, investigar, notar, seguir rastros, buscar pistas
+    observar, procurar, escutar, examinar, investigar, notar, seguir rastros, buscar pistas, perceber emboscada
     → rollType: "investigacao" ou "percepcao"
     → Nunca revele pistas, segredos ou detalhes ocultos sem a rolagem.
 
@@ -348,12 +410,12 @@ GATILHOS OBRIGATÓRIOS — pedir dado imediatamente:
     → rollType: "carisma"
 
   ARCANO / MAGIA:
-    conjurar, detectar magia, estudar símbolo, rituais, poderes mágicos
+    conjurar, detectar magia, estudar símbolo, decifrar runas, mexer em objeto mágico, rituais, poderes mágicos
     → rollType: "arcano"
 
   SABEDORIA / INTUIÇÃO:
     desconfiar, perceber mentira, ler emoções, pressentir perigo
-    → rollType: "percepcao"
+    → rollType: "sabedoria" ou "percepcao"
 
   CURA:
     curar ferimentos, estabilizar aliado
@@ -367,8 +429,8 @@ DIFICULDADES:
   CD 18 = muito arriscado (enganar especialista, ritual complexo)
 
 FORMATO NA NARRAÇÃO — obrigatório ao pedir rolagem:
-  Descreva o risco → "Role um d20 de [Tipo]. CD [número]."
-  Exemplo: "As tábuas rangem. Um passo errado e vai ouvir você. Role um d20 de Destreza. CD 13."
+  Descreva tipo + CD + risco + consequência de sucesso + consequência de falha.
+  Exemplo: "As tábuas rangem. Se passar, você cruza sem alertar os guardas; se falhar, a patrulha ouve. Role um d20 de Destreza. CD 13."
 
 NÃO RESOLVA SEM DADO:
   ✗ Nunca revele pistas escondidas sem Percepção/Investigação
@@ -380,18 +442,45 @@ NÃO RESOLVA SEM DADO:
 REGRA DE OURO: Se você está prestes a revelar informação, narrar consequência de combate
 ou confirmar sucesso de ação arriscada — PARE. Peça o dado primeiro.
 
-━━ GESTÃO DE QUESTS ━━
-QUEST PRINCIPAL "A Taverna dos Corvos":
-• Fala com taverneiro → update: "Conversei com o taverneiro — [revelado]"
-• Investiga desaparecimentos → update: "Investigando — [pista]"
-• Entra na floresta → update: "Na floresta — [descoberta]"
-• Descobre o culto → update: "Culto revelado — [detalhes]"
-• Derrota criatura final → complete
+━━ RECOMPENSA OBRIGATÓRIA DE TESTE ━━
+Quando o histórico recente trouxer uma rolagem do Sistema ou Mestre com D20, Total e CD, resolva o teste de forma concreta.
+Calcule:
+• sucesso normal: total >= CD
+• sucesso alto: total >= CD + 5
+• sucesso crítico: D20 natural 20 OU total >= CD + 10
+• falha: total < CD
+• falha crítica: D20 natural 1
 
-QUESTS SECUNDÁRIAS: crie sempre que NPC tiver pedido, problema ou segredo que o jogador pode resolver.
-• title: máximo 5 palavras
-• description: 1 frase com objetivo claro
-• reward: recompensa concreta se mencionada
+Sucesso normal: entregue pista parcial ou avanço útil.
+Sucesso alto: entregue pista forte, remova ambiguidade e desbloqueie rota, NPC, item ou missão.
+Sucesso crítico: entregue revelação grande, vantagem narrativa e progresso imediato.
+Falha: não trave; crie custo ou complicação, mas ofereça caminho.
+Falha crítica: crie perigo, emboscada, perda de recurso, dano ou complicação.
+
+Nunca diga "você percebe uma pista clara" sem dizer qual é a pista.
+Exemplo com Total 31 contra CD 12:
+"Com total 31, Morgdor não apenas entende os símbolos: ele reconhece a gramática ritual. A frase completa diz: 'O Corvo observa da colina negra, onde os vivos são pesados contra os mortos.'"
+
+━━ GESTÃO DE QUESTS VIVAS ━━
+QUEST PRINCIPAL "Os Desaparecidos de Valdrak":
+• Fala com Arvik → update objetivo: objectiveId "talk_arvik", objectiveStatus "completed"
+• Fala com Elenna → update objetivo: objectiveId "talk_elenna", objectiveStatus "completed"
+• Investiga porta dos fundos → update objetivo: objectiveId "inspect_back_door", objectiveStatus "completed"
+• Encontra rastros rumo à floresta → update objetivo: objectiveId "find_forest_tracks", objectiveStatus "completed"
+• Descobre quem leva moradores → update objetivo: objectiveId "discover_abductor", objectiveStatus "completed"
+
+RAMIFICAÇÕES:
+• Arvik passa a confiar no grupo → action "unlock_branch", title "A Porta dos Fundos", branchKey "arvik_trust"
+• Elenna recebe ajuda real → action "unlock_branch", title "O Último Pertence", branchKey "elenna_help"
+• Grupo ameaça NPCs ou fecha vias sociais → action "unlock_branch", title "Informações por Conta Própria", branchKey "social_threat"
+• Combate cedo na vila ou inimigo morto com pista → action "unlock_branch", title "Sangue na Chuva", branchKey "early_combat"
+
+REGRAS DE QUESTS:
+• Se NPC revelar informação importante, atualize o objetivo relacionado.
+• Se jogador escolher caminho alternativo, desbloqueie ramo.
+• Se jogador ameaçar, ignorar ou falhar socialmente, marque consequência.
+• Se combate gerar pista, crie/atualize quest de combate.
+• Não crie quests duplicadas.
 
 ━━ PROIBIÇÕES ABSOLUTAS ━━
 ✗ Nunca mencione D&D, Forgotten Realms, Wizards of the Coast ou sistemas reais
@@ -422,12 +511,14 @@ Responda APENAS com JSON válido. Sem texto antes ou depois. Sem markdown. Sem \
 {
   "narration": "string",
   "requiresRoll": boolean,
-  "rollType": "ataque|investigacao|percepcao|carisma|destreza|forca|arcano|cura|geral|nenhum",
+  "rollType": "ataque|investigacao|percepcao|carisma|destreza|forca|arcano|sabedoria|cura|geral|nenhum",
   "difficultyClass": number | null,
   "suggestedActions": ["string", ...] (2-5 itens; última sempre "Descrever minha própria ação"; ou [] se usar pergunta na narration),
-  "questsUpdates": [{"action":"create|update|complete|fail","title":"...","description":"...","progress":"...","reward":"..."}],
+  "questsUpdates": [{"action":"create|update|complete|fail|unlock_branch","title":"...","description":"...","progress":"...","objectiveId":"...","objectiveStatus":"active|completed|failed","branchKey":"...","reward":"...","consequences":[{"type":"unlock_quest|fail_quest|npc_trust|npc_fear|item_reward|xp_reward|memory_flag","questTitle":"...","npcName":"...","value":0,"flag":"..."}]}],
   "npcUpdates": [{"npcName":"...","mood":"...","trustChange":0,"fearChange":0,"knownInfo":"...","lastInteraction":"..."}],
   "inventoryUpdates": [{"action":"add|remove","item":{"name":"...","description":"...","rarity":"...","type":"..."}}],
+  "combatEncounter": {"shouldStartCombat": false, "enemies": [{"name":"...","hp":12,"armorClass":13,"abilities":[],"loot":[],"xpReward":25}]},
+  "narrativeProgress": {"changedSomething": true, "type":"clue|location|npc|combat|quest|item|threat", "summary":"o que mudou de forma concreta"},
   "memoryUpdates": {
     "currentScene": "string",
     "currentLocation": "string",
@@ -457,8 +548,13 @@ function formatQuests(quests?: AIMasterRequest['activeQuests']): string {
   if (!quests?.length) return 'Nenhuma quest ativa no momento.'
   return quests.map(q => {
     const parts = [`• [QUEST] ${q.title}`]
+    if (q.branchKey) parts.push(`  → Ramo: ${q.branchKey}`)
     if (q.description) parts.push(`  → ${q.description.slice(0, 100)}`)
     if (q.progress)    parts.push(`  → Último progresso: ${q.progress}`)
+    const objectives = q.objectiveList?.length ? q.objectiveList : q.objectives
+    if (objectives?.length) {
+      parts.push(`  → Objetivos: ${objectives.map(o => `${o.id}:${o.status ?? (o.done ? 'completed' : 'active')} (${o.label})`).join(' | ')}`)
+    }
     return parts.join('\n')
   }).join('\n')
 }
@@ -516,6 +612,14 @@ function classNarrativeHook(className: string): string {
 const STALL_PHRASES = /não sei|o que faço|o que fazer|fico parado|olho ao redor|espero aqui|não faço nada|me perco|estou perdido|não entendo|continuo esperando/i
 const VAGUE_ACTIONS = /^(ok|sim|não|continuar?|explorar?|andar?|seguir?|olho|espero|aguardo|fico|vejo|observo\.?|olho\.?)$/i
 const GENERIC_OBJECTIVES = /^(investigar|explorar|continuar|avançar|descobrir|procurar)\.?$/i
+const LOOP_TERMS: Record<string, RegExp> = {
+  sombra: /sombra|sombras/i,
+  sussurro: /sussurr|sussurro/i,
+  simbolo: /símbol|simbol|runa|runas/i,
+  frio: /frio|gelad|gélid/i,
+  rastros: /rastro|rastros|pegada|pegadas/i,
+  algo_errado: /algo errado|algo se aproxima|tensão aumenta|tensao aumenta/i,
+}
 
 type StallResult = { stalled: boolean; reason: string }
 
@@ -554,6 +658,46 @@ function detectStall(request: AIMasterRequest): StallResult {
   }
 
   return { stalled: false, reason: '' }
+}
+
+function detectNarrativeLoop(messages: AIMasterRequest['recentMessages']) {
+  const masterMessages = messages
+    .filter(m => m.role === 'master')
+    .slice(-3)
+
+  if (masterMessages.length < 3) {
+    return { loop: false, terms: [] as string[] }
+  }
+
+  const terms = Object.entries(LOOP_TERMS)
+    .filter(([, pattern]) => masterMessages.every(m => pattern.test(m.content)))
+    .map(([term]) => term)
+
+  return { loop: terms.length > 0, terms }
+}
+
+function extractRecentRoll(messages: AIMasterRequest['recentMessages']): string {
+  const roll = [...messages]
+    .reverse()
+    .find(m => /D20:\s*\d+/i.test(m.content) && /Total:\s*\**\d+/i.test(m.content) && /(CD\s*\d+|CD:\s*\d+)/i.test(m.content))
+
+  if (!roll) return ''
+
+  const d20 = roll.content.match(/D20:\s*(\d+)/i)?.[1]
+  const total = roll.content.match(/Total:\s*\**(\d+)/i)?.[1]
+  const cd = roll.content.match(/CD\s*:?\s*(\d+)/i)?.[1]
+  const outcome = roll.content.match(/Resultado:\s*([^\n]+)/i)?.[1]?.trim()
+  const margin = roll.content.match(/Margem:\s*([^\n]+)/i)?.[1]?.trim()
+
+  return [
+    '🎲 ROLAGEM RECENTE DETECTADA — resolva com recompensa/custo concreto.',
+    d20 ? `D20 natural: ${d20}` : '',
+    total ? `Total: ${total}` : '',
+    cd ? `CD: ${cd}` : '',
+    margin ? `Margem: ${margin}` : '',
+    outcome ? `Resultado informado: ${outcome}` : '',
+    'Se foi sucesso alto/crítico, entregue pista específica, rota, NPC, item ou progresso imediato.',
+  ].filter(Boolean).join('\n')
 }
 
 function buildAIMasterPrompt(request: AIMasterRequest): string {
@@ -650,11 +794,21 @@ function buildAIMasterPrompt(request: AIMasterRequest): string {
 
   // ── Stall detection ──
   const stallSignals = detectStall(request)
+  const narrativeLoop = detectNarrativeLoop(request.recentMessages)
+  const recentRollCtx = extractRecentRoll(request.recentMessages)
   const worldEventDue = (mem?.turnCount ?? 0) > 0 && (mem?.turnCount ?? 0) % 5 === 0
 
   // ── Instrução de foco dinâmica ──
   let focusInstruction = ''
-  if (stallSignals.stalled) {
+  if (narrativeLoop.loop) {
+    focusInstruction = [
+      '🚨 ALERTA DE LOOP NARRATIVO',
+      `Elementos repetidos nas últimas respostas: ${narrativeLoop.terms.join(', ')}`,
+      'Você DEVE trocar o foco agora. Não use esses elementos como centro da resposta.',
+      'Escolha: NPC age, ameaça física, novo local, item/pista concreta, quest atualizada, combate ou revelação.',
+      'narrativeProgress.changedSomething deve ser true e summary deve dizer exatamente o avanço.',
+    ].join('\n')
+  } else if (stallSignals.stalled) {
     focusInstruction = [
       '🚨 ALERTA: MOTOR DE AVANÇO ATIVADO',
       `Sinal detectado: ${stallSignals.reason}`,
@@ -698,6 +852,7 @@ ${questCtx}
 ━━ HISTÓRICO RECENTE ━━
 ${formatRecentMessages(request.recentMessages)}
 ${pendingCtx ? '\n━━ ROLAGEM PENDENTE ━━\n' + pendingCtx : ''}
+${recentRollCtx ? '\n━━ ROLAGEM RECENTE PARA RESOLVER ━━\n' + recentRollCtx : ''}
 
 ━━ AÇÃO DO JOGADOR AGORA ━━
 ${actingPlayerName ? `[${actingPlayerName}] ` : ''}${request.playerMessage}
@@ -781,6 +936,35 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
         .slice(0, 8)
     : undefined
 
+  const combatEncounter = parsed.combatEncounter && typeof parsed.combatEncounter === 'object'
+    ? {
+        shouldStartCombat: Boolean(parsed.combatEncounter.shouldStartCombat),
+        enemies: Array.isArray(parsed.combatEncounter.enemies)
+          ? parsed.combatEncounter.enemies
+              .filter((e: any) => typeof e?.name === 'string' && e.name.trim())
+              .map((e: any) => ({
+                name: String(e.name).trim(),
+                ...(typeof e.hp === 'number' && Number.isFinite(e.hp) ? { hp: e.hp } : {}),
+                ...(typeof e.armorClass === 'number' && Number.isFinite(e.armorClass) ? { armorClass: e.armorClass } : {}),
+                ...(Array.isArray(e.abilities) ? { abilities: e.abilities } : {}),
+                ...(Array.isArray(e.loot) ? { loot: e.loot } : {}),
+                ...(typeof e.xpReward === 'number' && Number.isFinite(e.xpReward) ? { xpReward: e.xpReward } : {}),
+              }))
+              .slice(0, 4)
+          : [],
+      }
+    : undefined
+
+  const narrativeProgress = parsed.narrativeProgress && typeof parsed.narrativeProgress === 'object'
+    ? {
+        changedSomething: Boolean(parsed.narrativeProgress.changedSomething),
+        type: ['clue', 'location', 'npc', 'combat', 'quest', 'item', 'threat'].includes(parsed.narrativeProgress.type)
+          ? parsed.narrativeProgress.type
+          : 'clue',
+        summary: String(parsed.narrativeProgress.summary || '').trim(),
+      }
+    : undefined
+
   return {
     narration:      String(parsed.narration || '').trim(),
     requiresRoll:   Boolean(parsed.requiresRoll),
@@ -790,6 +974,8 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
     questsUpdates,
     npcUpdates,
     inventoryUpdates,
+    combatEncounter,
+    narrativeProgress,
     memoryUpdates: {
       currentScene:    String(parsed.memoryUpdates?.currentScene    || mem?.currentScene    || 'início da aventura'),
       currentLocation: String(parsed.memoryUpdates?.currentLocation || mem?.currentLocation || 'local desconhecido'),

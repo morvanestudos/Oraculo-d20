@@ -1,14 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '../../../../../../lib/prisma'
-import type { QuestObjective } from '../../../../../../lib/types'
-
-const TAVERNA_OBJECTIVES: QuestObjective[] = [
-  { id: 'taverneiro',     label: 'Conversar com o taverneiro',   done: false },
-  { id: 'desaparecimentos', label: 'Investigar os desaparecimentos', done: false },
-  { id: 'floresta',       label: 'Explorar a floresta',          done: false },
-  { id: 'culto',          label: 'Descobrir o culto oculto',     done: false },
-  { id: 'criatura',       label: 'Encontrar a criatura final',   done: false },
-]
+import { TAVERNA_MAIN_QUEST } from '../../../../../../lib/questSystem'
 
 function isTaverna(title: string) {
   return title.toLowerCase().includes('taverna dos corvos')
@@ -42,12 +34,14 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     const quest = await prisma.quest.create({
       data: {
         campaignId,
-        title: 'A Taverna dos Corvos',
-        description: 'Uma série de desaparecimentos misteriosos assola a região. Investigue os rumores, adentre a floresta sombria e descubra o que se oculta nas sombras.',
-        status: 'active',
-        questType: 'main',
-        objectives: TAVERNA_OBJECTIVES as any,
-        reward: '500 XP + Título: Caçadores das Sombras',
+        title: TAVERNA_MAIN_QUEST.title,
+        description: TAVERNA_MAIN_QUEST.description,
+        status: TAVERNA_MAIN_QUEST.status ?? 'active',
+        questType: TAVERNA_MAIN_QUEST.questType ?? 'main',
+        objectives: (TAVERNA_MAIN_QUEST.objectives ?? []) as any,
+        objectiveList: (TAVERNA_MAIN_QUEST.objectiveList ?? []) as any,
+        reward: TAVERNA_MAIN_QUEST.reward,
+        priority: TAVERNA_MAIN_QUEST.priority ?? 100,
       }
     })
 

@@ -104,6 +104,12 @@ model Quest {
   reward      String?
   questType   String   @default("secondary")
   objectives  Json     @default("[]")
+  branchKey   String?
+  parentQuestId Int?
+  objectiveList Json?
+  consequences Json?
+  hidden      Boolean  @default(false)
+  priority    Int      @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   campaign    Campaign @relation(fields: [campaignId], references: [id])

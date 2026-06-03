@@ -13,6 +13,12 @@ function mapQuest(raw: any): Quest {
     reward: raw.reward ?? null,
     questType: (raw.questType ?? 'secondary') as Quest['questType'],
     objectives: Array.isArray(raw.objectives) ? raw.objectives : [],
+    branchKey: raw.branchKey ?? null,
+    parentQuestId: raw.parentQuestId != null ? String(raw.parentQuestId) : null,
+    objectiveList: Array.isArray(raw.objectiveList) ? raw.objectiveList : null,
+    consequences: Array.isArray(raw.consequences) ? raw.consequences : null,
+    hidden: raw.hidden ?? false,
+    priority: raw.priority ?? 0,
     createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : String(raw.createdAt),
     updatedAt: raw.updatedAt instanceof Date ? raw.updatedAt.toISOString() : String(raw.updatedAt)
   }
@@ -34,6 +40,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (body.progress !== undefined) updateData.progress = body.progress
     if (body.reward !== undefined) updateData.reward = body.reward
     if (body.objectives !== undefined) updateData.objectives = body.objectives
+    if (body.branchKey !== undefined) updateData.branchKey = body.branchKey
+    if (body.parentQuestId !== undefined) updateData.parentQuestId = body.parentQuestId != null ? Number(body.parentQuestId) : null
+    if (body.objectiveList !== undefined) updateData.objectiveList = body.objectiveList
+    if (body.consequences !== undefined) updateData.consequences = body.consequences
+    if (body.hidden !== undefined) updateData.hidden = body.hidden
+    if (body.priority !== undefined) updateData.priority = body.priority
 
     const quest = await prisma.quest.update({
       where: { id: questId },

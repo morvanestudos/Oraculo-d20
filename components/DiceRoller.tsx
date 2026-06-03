@@ -87,6 +87,18 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
       const breakdown = calculateRollTotal({ d20, rollType, character })
       const { total, isCriticalSuccess, isCriticalFail, attributeLabel, attributeValue } = breakdown
       const signedAttr = attributeValue >= 0 ? `+${attributeValue}` : `${attributeValue}`
+      const margin = total - cd
+      const outcomeLabel = isCriticalSuccess
+        ? 'Sucesso crítico'
+        : isCriticalFail
+          ? 'Falha crítica'
+          : total >= cd + 10
+            ? 'Sucesso excepcional'
+            : total >= cd + 5
+              ? 'Sucesso alto'
+              : total >= cd
+                ? 'Sucesso'
+                : 'Falha'
 
       // Announce the roll immediately
       await postSystem(
@@ -94,6 +106,8 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
         [
           `🎲 ${ROLL_LABELS[rollType] ?? rollType} CD ${cd}`,
           `D20: ${d20}   ${attributeLabel}: ${signedAttr}   Total: **${total}**`,
+          `Resultado: ${outcomeLabel}`,
+          `Margem: ${margin >= 0 ? '+' : ''}${margin}`,
           noChar ? '⚠️ Sem personagem ativo — atributo não somado.' : '',
         ].filter(Boolean).join('\n')
       )

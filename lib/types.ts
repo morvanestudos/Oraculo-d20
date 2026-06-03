@@ -152,7 +152,7 @@ export type MessageCreateDTO = {
 
 export type MessageDTO = Message
 
-type TestType = 'ataque' | 'percepcao' | 'investigacao' | 'carisma' | 'destreza' | 'forca' | 'arcano' | 'cura' | 'geral'
+type TestType = 'ataque' | 'percepcao' | 'investigacao' | 'carisma' | 'destreza' | 'forca' | 'arcano' | 'sabedoria' | 'cura' | 'geral'
 
 export type PendingTest = {
   id: string
@@ -207,7 +207,18 @@ export type CampaignPlayerJoinDTO = {
 export type QuestObjective = {
   id: string
   label: string
-  done: boolean
+  status: 'active' | 'completed' | 'failed'
+  completedAt?: string | null
+  done?: boolean
+}
+
+export type QuestConsequence = {
+  type: 'unlock_quest' | 'fail_quest' | 'npc_trust' | 'npc_fear' | 'item_reward' | 'xp_reward' | 'memory_flag'
+  questTitle?: string
+  npcName?: string
+  value?: number
+  item?: InventoryItem
+  flag?: string
 }
 
 export type Quest = {
@@ -220,6 +231,12 @@ export type Quest = {
   reward: string | null
   questType: 'main' | 'secondary'
   objectives: QuestObjective[]
+  branchKey?: string | null
+  parentQuestId?: string | null
+  objectiveList?: QuestObjective[] | null
+  consequences?: QuestConsequence[] | null
+  hidden?: boolean
+  priority?: number
   createdAt: string
   updatedAt: string
 }
@@ -230,6 +247,12 @@ export type QuestCreateDTO = {
   reward?: string | null
   questType?: 'main' | 'secondary'
   objectives?: QuestObjective[]
+  branchKey?: string | null
+  parentQuestId?: string | null
+  objectiveList?: QuestObjective[] | null
+  consequences?: QuestConsequence[] | null
+  hidden?: boolean
+  priority?: number
   status?: 'inactive' | 'active' | 'completed' | 'failed'
 }
 
@@ -240,14 +263,24 @@ export type QuestPatchDTO = Partial<{
   progress: string | null
   reward: string | null
   objectives: QuestObjective[]
+  branchKey: string | null
+  parentQuestId: string | null
+  objectiveList: QuestObjective[] | null
+  consequences: QuestConsequence[] | null
+  hidden: boolean
+  priority: number
 }>
 
 export type QuestUpdate = {
-  action: 'create' | 'update' | 'complete' | 'fail'
+  action: 'create' | 'update' | 'complete' | 'fail' | 'unlock_branch'
   title: string
   description?: string
   progress?: string
+  objectiveId?: string
+  objectiveStatus?: 'active' | 'completed' | 'failed'
+  branchKey?: string
   reward?: string
+  consequences?: QuestConsequence[]
 }
 
 export type ItemRarity = 'comum' | 'incomum' | 'raro' | 'amaldiçoado'
@@ -294,12 +327,21 @@ export type NpcUpdate = {
 export type AIMasterResponse = {
   narration: string
   requiresRoll: boolean
-  rollType: 'ataque' | 'investigacao' | 'percepcao' | 'carisma' | 'destreza' | 'forca' | 'arcano' | 'cura' | 'geral' | 'nenhum'
+  rollType: 'ataque' | 'investigacao' | 'percepcao' | 'carisma' | 'destreza' | 'forca' | 'arcano' | 'sabedoria' | 'cura' | 'geral' | 'nenhum'
   difficultyClass: number | null
   suggestedActions?: string[]
   questsUpdates?: QuestUpdate[]
   npcUpdates?: NpcUpdate[]
   inventoryUpdates?: InventoryUpdate[]
+  combatEncounter?: {
+    shouldStartCombat: boolean
+    enemies: Array<{ name: string; hp?: number; armorClass?: number; abilities?: unknown[]; loot?: unknown[]; xpReward?: number }>
+  }
+  narrativeProgress?: {
+    changedSomething: boolean
+    type: 'clue' | 'location' | 'npc' | 'combat' | 'quest' | 'item' | 'threat'
+    summary: string
+  }
   memoryUpdates: {
     currentScene: string
     currentLocation: string

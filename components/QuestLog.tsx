@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react'
 import { createPusherClient } from '../lib/pusher-client'
-import type { Quest, QuestObjective } from '../lib/types'
+import type { Quest, QuestConsequence, QuestObjective } from '../lib/types'
 import { getRandomLoadingPhrase } from '../lib/loadingPhrases'
 
 type Props = {
@@ -26,9 +26,17 @@ function statusBadge(status: Quest['status']) {
   return                            { label: 'Fracassada',   color: 'rgba(248,113,113,0.7)',  bg: 'rgba(248,113,113,0.07)' }
 }
 
+function questObjectives(quest: Quest): QuestObjective[] {
+  return quest.objectiveList?.length ? quest.objectiveList : quest.objectives
+}
+
+function isObjectiveDone(objective: QuestObjective) {
+  return objective.status === 'completed' || objective.done === true
+}
+
 function ProgressBar({ objectives }: { objectives: QuestObjective[] }) {
   if (!objectives.length) return null
-  const done = objectives.filter(o => o.done).length
+  const done = objectives.filter(isObjectiveDone).length
   const pct = Math.round((done / objectives.length) * 100)
 
   return (
@@ -68,31 +76,58 @@ function ObjectiveList({ objectives }: { objectives: QuestObjective[] }) {
     <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
       {objectives.map(obj => (
         <li key={obj.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {(() => {
+            const done = isObjectiveDone(obj)
+            const failed = obj.status === 'failed'
+            return (
+              <>
           <span style={{
             flexShrink: 0,
             width: 13, height: 13,
-            border: `1px solid ${obj.done ? 'rgba(110,231,183,0.5)' : 'rgba(212,177,106,0.2)'}`,
+            border: `1px solid ${done ? 'rgba(110,231,183,0.5)' : failed ? 'rgba(248,113,113,0.45)' : 'rgba(212,177,106,0.2)'}`,
             borderRadius: 2,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: '0.55rem',
-            color: obj.done ? '#6ee7b7' : 'transparent',
-            background: obj.done ? 'rgba(110,231,183,0.08)' : 'transparent',
+            color: done ? '#6ee7b7' : failed ? '#f87171' : 'transparent',
+            background: done ? 'rgba(110,231,183,0.08)' : failed ? 'rgba(248,113,113,0.08)' : 'transparent',
             transition: 'all 0.3s',
           }}>
-            {obj.done ? '✓' : ''}
+            {done ? '✓' : failed ? '!' : ''}
           </span>
           <span style={{
             fontSize: '0.68rem',
-            color: obj.done ? 'rgba(110,231,183,0.6)' : 'rgba(212,177,106,0.55)',
-            textDecoration: obj.done ? 'line-through' : 'none',
+            color: done ? 'rgba(110,231,183,0.6)' : failed ? 'rgba(248,113,113,0.65)' : 'rgba(212,177,106,0.55)',
+            textDecoration: done ? 'line-through' : 'none',
             lineHeight: 1.3,
             transition: 'all 0.3s',
           }}>
             {obj.label}
           </span>
+              </>
+            )
+          })()}
         </li>
       ))}
     </ul>
+  )
+}
+
+function ConsequenceList({ consequences }: { consequences?: QuestConsequence[] | null }) {
+  if (!consequences?.length) return null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
+      {consequences.slice(0, 3).map((c, i) => (
+        <div key={`${c.type}-${i}`} style={{ fontSize: '0.62rem', color: 'rgba(248,113,113,0.62)', lineHeight: 1.35 }}>
+          ⚠️ {c.type === 'unlock_quest' && c.questTitle
+            ? `Pode desbloquear: ${c.questTitle}`
+            : c.npcName
+              ? `${c.npcName}: ${c.type.replace('_', ' ')} ${c.value ?? ''}`
+              : c.flag
+                ? `Marca memória: ${c.flag}`
+                : 'Consequência registrada'}
+        </div>
+      ))}
+    </div>
   )
 }
 
@@ -129,18 +164,21 @@ export default function QuestLog({ campaignId }: Props) {
     }
   }, [campaignId])
 
-  // Sort: main first, then by status order, then by createdAt
+  // Sort: main first, then priority, status order, then createdAt
   const statusOrder: Record<Quest['status'], number> = { active: 0, inactive: 1, completed: 2, failed: 3 }
   const sorted = [...quests].sort((a, b) => {
     if (a.questType === 'main' && b.questType !== 'main') return -1
     if (b.questType === 'main' && a.questType !== 'main') return 1
+    if ((b.priority ?? 0) !== (a.priority ?? 0)) return (b.priority ?? 0) - (a.priority ?? 0)
     return statusOrder[a.status] - statusOrder[b.status]
   })
 
-  const visible = sorted.filter(q => q.status !== 'completed' && q.status !== 'failed')
+  const visible = sorted.filter(q => !q.hidden && q.status !== 'completed' && q.status !== 'failed')
   const done    = sorted.filter(q => q.status === 'completed' || q.status === 'failed')
   const principal = visible.find(q => q.questType === 'main') ?? null
   const secondary = visible.filter(q => q.questType !== 'main')
+  const completed = done.filter(q => q.status === 'completed')
+  const failed = done.filter(q => q.status === 'failed')
 
   return (
     <>
@@ -218,6 +256,7 @@ export default function QuestLog({ campaignId }: Props) {
           {/* Quest principal */}
           {!loading && principal && (() => {
             const badge = statusBadge(principal.status)
+            const objectives = questObjectives(principal)
             return (
               <div style={{ marginBottom:'0.85rem' }}>
                 <div style={{
@@ -286,13 +325,13 @@ export default function QuestLog({ campaignId }: Props) {
                     )}
 
                     {/* Progress bar */}
-                    {principal.objectives.length > 0 && (
-                      <ProgressBar objectives={principal.objectives} />
+                    {objectives.length > 0 && (
+                      <ProgressBar objectives={objectives} />
                     )}
 
                     {/* Objectives checklist */}
-                    {principal.objectives.length > 0 && (
-                      <ObjectiveList objectives={principal.objectives} />
+                    {objectives.length > 0 && (
+                      <ObjectiveList objectives={objectives} />
                     )}
 
                     {/* Progress text */}
@@ -320,6 +359,8 @@ export default function QuestLog({ campaignId }: Props) {
                         </span>
                       </div>
                     )}
+
+                    <ConsequenceList consequences={principal.consequences} />
                   </div>
                 </div>
               </div>
@@ -340,6 +381,7 @@ export default function QuestLog({ campaignId }: Props) {
               <ul style={{ listStyle:'none', margin:0, padding:0, display:'flex', flexDirection:'column', gap:5 }}>
                 {secondary.map(q => {
                   const badge = statusBadge(q.status)
+                  const objectives = questObjectives(q)
                   return (
                     <li key={q.id} style={{
                       display:'flex', alignItems:'flex-start', gap:8,
@@ -350,7 +392,7 @@ export default function QuestLog({ campaignId }: Props) {
                       opacity: q.status === 'inactive' ? 0.6 : 1,
                     }}>
                       <span style={{ fontSize:'0.75rem', flexShrink:0, marginTop:1 }}>
-                        {questIcon(q.title, q.description)}
+                        {q.branchKey ? '🔀' : questIcon(q.title, q.description)}
                       </span>
                       <div style={{ minWidth:0, flex:1 }}>
                         <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
@@ -379,6 +421,10 @@ export default function QuestLog({ campaignId }: Props) {
                             ◈ {q.progress}
                           </div>
                         )}
+                        {objectives.length > 0 && (
+                          <ObjectiveList objectives={objectives} />
+                        )}
+                        <ConsequenceList consequences={q.consequences} />
                         {q.reward && (
                           <div style={{ fontSize:'0.63rem', color:'#5aad8a', marginTop:2 }}>
                             🎁 {q.reward}
@@ -410,40 +456,40 @@ export default function QuestLog({ campaignId }: Props) {
                 }}
               >
                 <span style={{ fontSize:'0.6rem' }}>{doneOpen ? '▾' : '▸'}</span>
-                Concluídas ({done.length})
+                Arquivo ({completed.length} concluída{completed.length !== 1 ? 's' : ''}, {failed.length} falhada{failed.length !== 1 ? 's' : ''})
               </div>
 
               {doneOpen && (
-                <ul style={{ listStyle:'none', margin:0, padding:0, display:'flex', flexDirection:'column', gap:4 }}>
-                  {done.map(q => (
-                    <li key={q.id} style={{
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {[...completed, ...failed].map(q => (
+                    <div key={q.id} style={{
                       display:'flex', alignItems:'center', gap:7,
                       padding:'5px 8px',
-                      opacity: 0.45,
+                      opacity: 0.48,
                     }}>
                       <span style={{
                         flexShrink:0,
                         width:14, height:14,
-                        border:'1px solid rgba(110,231,183,0.4)',
+                        border:`1px solid ${q.status === 'completed' ? 'rgba(110,231,183,0.4)' : 'rgba(248,113,113,0.45)'}`,
                         borderRadius:2,
                         display:'flex', alignItems:'center', justifyContent:'center',
                         fontSize:'0.6rem',
                         color: q.status === 'completed' ? '#6ee7b7' : '#f87171',
                       }}>
-                        {q.status === 'completed' ? '✓' : '✗'}
+                        {q.status === 'completed' ? '✓' : '!'}
                       </span>
                       <span style={{
                         fontSize:'0.72rem',
                         color: q.status === 'completed' ? '#5aad8a' : '#8a4040',
-                        textDecoration:'line-through',
+                        textDecoration: q.status === 'completed' ? 'line-through' : 'none',
                         fontFamily:'Georgia, serif',
                         fontStyle:'italic',
                       }}>
-                        {q.title}
+                        {q.status === 'failed' ? '⚠️ ' : '✅ '}{q.title}
                       </span>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               )}
             </div>
           )}
