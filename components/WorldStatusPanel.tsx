@@ -20,6 +20,15 @@ const TAVERNA_DEFAULTS = {
   tension:   3,
 }
 
+const AURORA_DEFAULTS = {
+  location:  'O Grifo Dourado',
+  region:    'Cidade de Aurora',
+  climate:   'Noite clara sobre ruas movimentadas',
+  threat:    'Apagamento da realidade',
+  objective: 'Investigar o desaparecimento de Eldric',
+  tension:   3,
+}
+
 const GENERIC_DEFAULTS = {
   location:  'Desconhecido',
   region:    'Terras Desconhecidas',
@@ -31,13 +40,23 @@ const GENERIC_DEFAULTS = {
 
 function deriveRegion(location: string): string {
   const l = (location ?? '').toLowerCase()
+  if (l.includes('aurora') || l.includes('grifo') || l.includes('distrito')) return 'Cidade de Aurora'
+  if (l.includes('catacumba') || l.includes('esgoto')) return 'Subterrâneos de Aurora'
+  if (l.includes('palácio') || l.includes('palacio')) return 'Distrito Nobre de Aurora'
   if (l.includes('valdrak') || l.includes('taverna') || l.includes('corvos')) return 'Vila de Valdrak'
   if (l.includes('floresta') || l.includes('norte')) return 'Floresta ao Norte'
   return 'Terras Desconhecidas'
 }
 
-function deriveClimate(location: string, scene: string, isTaverna: boolean): string {
+function deriveClimate(location: string, scene: string, isTaverna: boolean, isAurora: boolean): string {
   if (isTaverna) return 'Chuva fria da noite'
+  if (isAurora) {
+    const s = ((location ?? '') + ' ' + (scene ?? '')).toLowerCase()
+    if (s.includes('esgoto') || s.includes('catacumba')) return 'Úmido, abafado e antigo'
+    if (s.includes('arcano') || s.includes('biblioteca')) return 'Ar rarefeito, cheiro de pergaminho'
+    if (s.includes('baixo') || s.includes('mercado negro')) return 'Ruas estreitas e ar pesado'
+    return 'Ruas vivas sob lanternas de guilda'
+  }
   const s = ((location ?? '') + ' ' + (scene ?? '')).toLowerCase()
   if (s.includes('floresta') || s.includes('norte')) return 'Neblina densa'
   if (s.includes('caverna') || s.includes('dungeon')) return 'Úmido e escuro'
@@ -68,11 +87,13 @@ export default function WorldStatusPanel({ campaignId, campaignTitle }: Props) {
   }, [campaignId])
 
   const isTaverna = (campaignTitle ?? '').toLowerCase().includes('taverna dos corvos')
-  const D = isTaverna ? TAVERNA_DEFAULTS : GENERIC_DEFAULTS
+  const title = (campaignTitle ?? '').toLowerCase()
+  const isAurora = title.includes('aurora') || title.includes('elyndria') || title.includes('esquecidos')
+  const D = isAurora ? AURORA_DEFAULTS : isTaverna ? TAVERNA_DEFAULTS : GENERIC_DEFAULTS
 
   const location  = memory?.currentLocation?.trim() || D.location
   const region    = memory?.currentLocation ? deriveRegion(memory.currentLocation) : D.region
-  const climate   = deriveClimate(memory?.currentLocation ?? '', memory?.currentScene ?? '', isTaverna)
+  const climate   = deriveClimate(memory?.currentLocation ?? '', memory?.currentScene ?? '', isTaverna, isAurora)
   const threat    = memory?.currentThreat?.trim()    || D.threat
   const objective = memory?.currentObjective?.trim() || D.objective
   const tension   = Math.min(Math.max(memory?.tensionLevel ?? D.tension, 1), 10)

@@ -1,5 +1,6 @@
 'use client'
 import React, { useCallback, useEffect, useState } from 'react'
+import { getOfficialCampaign } from '../lib/officialCampaigns'
 import { createPusherClient } from '../lib/pusher-client'
 import type { Npc } from '../lib/types'
 
@@ -7,47 +8,6 @@ type Props = {
   campaignId: string
   campaignTitle?: string
 }
-
-// ── Taverna dos Corvos seed NPCs ─────────────────────────────────────────────
-
-const TAVERNA_NPCS: Omit<Npc, 'id' | 'campaignId' | 'active'>[] = [
-  {
-    name: 'Arvik, o Taverneiro',
-    role: 'Dono da Taverna dos Corvos',
-    mood: 'desconfiado',
-    trust: -1,
-    fear: 3,
-    knownInfo: 'Ouviu cantos vindos da floresta ao norte nas noites de desaparecimento.',
-    secrets: 'Viu um símbolo gravado na porta dos fundos, mas não contou a ninguém.',
-  },
-  {
-    name: 'Elenna, a Viúva',
-    role: 'Moradora da vila',
-    mood: 'desesperado',
-    trust: 2,
-    fear: 8,
-    knownInfo: 'Seu marido desapareceu perto do poço antigo há três noites.',
-    secrets: 'Encontrou um pedaço de tecido com o símbolo do culto no bolso do marido antes do sumiço.',
-  },
-  {
-    name: 'Irmã Maera',
-    role: 'Guardiã da Capela',
-    mood: 'misterioso',
-    trust: 0,
-    fear: 4,
-    knownInfo: 'Diz que os desaparecimentos seguem um padrão lunar antigo.',
-    secrets: 'Tem um grimório que descreve o ritual — mas acredita ser ficção.',
-  },
-  {
-    name: 'Varek, o Caçador',
-    role: 'Rastreador da vila',
-    mood: 'ansioso',
-    trust: 1,
-    fear: 5,
-    knownInfo: 'Encontrou pegadas que desaparecem abruptamente na beira da floresta.',
-    secrets: 'Viu luzes se movendo na floresta na noite passada e fugiu sem investigar.',
-  },
-]
 
 const GENERIC_INITIAL_NPC: Omit<Npc, 'id' | 'campaignId' | 'active'> = {
   name: 'Viajante Misterioso',
@@ -162,7 +122,7 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
   const [seeded, setSeeded] = useState(false)
   const [creatingInitialNpc, setCreatingInitialNpc] = useState(false)
 
-  const isTaverna = (campaignTitle ?? '').toLowerCase().includes('taverna')
+  const officialCampaign = getOfficialCampaign(campaignTitle)
 
   const fetchNpcs = useCallback(async () => {
     try {
@@ -170,13 +130,13 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
       if (!r.ok) return
       const data: Npc[] = await r.json()
 
-      if (data.length === 0 && isTaverna && !seeded) {
-        // Auto-seed Taverna NPCs
+      if (data.length === 0 && officialCampaign && !seeded) {
+        // Auto-seed official campaign NPCs
         setSeeded(true)
         const seedR = await fetch(`/api/campaigns/${campaignId}/npcs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ npcs: TAVERNA_NPCS }),
+          body: JSON.stringify({ npcs: officialCampaign.initialNpcs }),
         })
         if (seedR.ok) setNpcs(await seedR.json())
       } else {
@@ -184,7 +144,7 @@ export default function NpcPanel({ campaignId, campaignTitle }: Props) {
       }
     } catch { /* silent */ }
     setLoading(false)
-  }, [campaignId, isTaverna, seeded])
+  }, [campaignId, officialCampaign, seeded])
 
   useEffect(() => { fetchNpcs() }, [fetchNpcs])
 

@@ -26,7 +26,7 @@ import TurnOrderPanel from '../../../components/TurnOrderPanel'
 import CombatPanel from '../../../components/CombatPanel'
 import MobileGameHud, { type MobilePanel } from '../../../components/MobileGameHud'
 import EnemyPanel from '../../../components/EnemyPanel'
-import { TAVERNA_INITIAL_MESSAGE } from '../../../components/CampaignIntroPanel'
+import { getOfficialCampaign } from '../../../lib/officialCampaigns'
 import type { Campaign, Character, CampaignPlayer, TurnState } from '../../../lib/types'
 
 export default function CampaignRoom({ params }: { params: { id: string } }) {
@@ -312,9 +312,9 @@ export default function CampaignRoom({ params }: { params: { id: string } }) {
     if (isStartingCampaign) return
     setIsStartingCampaign(true)
     try {
-      const isTaverna = (campaign?.title ?? '').toLowerCase().includes('taverna dos corvos')
-      const initialMessage = isTaverna
-        ? TAVERNA_INITIAL_MESSAGE
+      const officialCampaign = getOfficialCampaign(campaign?.title)
+      const initialMessage = officialCampaign
+        ? officialCampaign.initialMessage
         : campaign?.description
           ? `${campaign.description}\n\nO Mestre aguarda. Apresentem seus personagens e declarem suas primeiras ações.`
           : 'A aventura começa. O Mestre aguarda a primeira ação dos aventureiros.'

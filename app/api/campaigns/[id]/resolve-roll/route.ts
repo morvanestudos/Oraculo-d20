@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { generateRollResolutionNarration, type RollResolutionContext } from '../../../../../lib/aiDungeonMaster'
+import { generateRollResolutionNarration, type RollResolutionNarrationInput } from '../../../../../lib/aiDungeonMaster'
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   const campaignId = Number(params.id)
@@ -8,14 +8,23 @@ export async function POST(request: Request, { params }: { params: { id: string 
   }
 
   try {
-    const body = await request.json() as { rollResolution?: RollResolutionContext }
+    const body = await request.json() as Partial<RollResolutionNarrationInput>
     const rollResolution = body.rollResolution
 
     if (!rollResolution?.rollType || !rollResolution.actorName || typeof rollResolution.total !== 'number') {
       return NextResponse.json({ error: 'rollResolution inválido' }, { status: 400 })
     }
 
-    const narration = await generateRollResolutionNarration(rollResolution)
+    const narration = await generateRollResolutionNarration({
+      rollResolution,
+      campaign: body.campaign ?? null,
+      campaignMemory: body.campaignMemory ?? null,
+      activeCharacter: body.activeCharacter ?? null,
+      party: body.party ?? [],
+      recentMessages: body.recentMessages ?? [],
+      persistentNpcs: body.persistentNpcs ?? [],
+      activeEnemies: body.activeEnemies ?? [],
+    })
     return NextResponse.json({ narration })
   } catch (error) {
     console.error('Erro ao narrar resolução de rolagem:', error)

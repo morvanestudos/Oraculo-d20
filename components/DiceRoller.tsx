@@ -17,7 +17,7 @@ import {
   applyDamage, formatDamageMessage, formatMissMessage, formatEnemyMissMessage,
 } from '../lib/combatDamage'
 import type { CombatState, Message, PendingTest } from '../lib/types'
-import type { RollResolutionContext } from '../lib/aiDungeonMaster'
+import type { RollResolutionContext, RollResolutionNarrationInput } from '../lib/aiDungeonMaster'
 
 type DiceRollerProps = {
   campaignId: string
@@ -148,6 +148,8 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
               outcome: rollOutcome({ total, difficultyClass: dbEnemy.armorClass, isCriticalSuccess, isCriticalFail }),
               margin: total - dbEnemy.armorClass,
               reason: currentPendingTest.reason,
+              originalAction: currentPendingTest.reason,
+              playerIntent: currentPendingTest.reason,
               targetHpBefore: dbEnemy.hp,
               targetHpAfter: dbEnemy.hp,
               targetMaxHp: dbEnemy.maxHp,
@@ -176,6 +178,8 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
               outcome: rollOutcome({ total, difficultyClass: dbEnemy.armorClass, isCriticalSuccess, isCriticalFail }),
               margin: total - dbEnemy.armorClass,
               reason: currentPendingTest.reason,
+              originalAction: currentPendingTest.reason,
+              playerIntent: currentPendingTest.reason,
               damage: {
                 dice: dmgRoll.formula,
                 rolls: dmgRoll.diceRolls,
@@ -225,6 +229,8 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
               outcome: rollOutcome({ total, difficultyClass: cd, isCriticalSuccess, isCriticalFail }),
               margin,
               reason: currentPendingTest.reason,
+              originalAction: currentPendingTest.reason,
+              playerIntent: currentPendingTest.reason,
             }, msg)
           }
           clearPendingTest(campaignId)
@@ -258,6 +264,8 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
               outcome: rollOutcome({ total, difficultyClass: enemy.armorClass, isCriticalSuccess, isCriticalFail }),
               margin: total - enemy.armorClass,
               reason: currentPendingTest.reason,
+              originalAction: currentPendingTest.reason,
+              playerIntent: currentPendingTest.reason,
               targetHpBefore: enemy.hp,
               targetHpAfter: enemy.hp,
               targetMaxHp: enemy.maxHp,
@@ -283,6 +291,8 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
               outcome: rollOutcome({ total, difficultyClass: enemy.armorClass, isCriticalSuccess, isCriticalFail }),
               margin: total - enemy.armorClass,
               reason: currentPendingTest.reason,
+              originalAction: currentPendingTest.reason,
+              playerIntent: currentPendingTest.reason,
               damage: {
                 dice: dmgRoll.formula,
                 rolls: dmgRoll.diceRolls,
@@ -383,6 +393,8 @@ export default function DiceRoller({ campaignId, isMyTurn = true, currentActorNa
           outcome: rollOutcome({ total, difficultyClass: cd, isCriticalSuccess, isCriticalFail }),
           margin,
           reason: currentPendingTest.reason,
+          originalAction: currentPendingTest.reason,
+          playerIntent: currentPendingTest.reason,
         }, msg)
         clearPendingTest(campaignId)
         setPending(null)
@@ -478,10 +490,11 @@ async function postResolvedRollNarration(
   fallback: string
 ) {
   try {
+    const extraContext = await collectRollResolutionContext(campaignId)
     const response = await fetch(`/api/campaigns/${campaignId}/resolve-roll`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ rollResolution }),
+      body: JSON.stringify({ rollResolution, ...extraContext }),
     })
     if (response.ok) {
       const data = await response.json() as { narration?: string }
@@ -493,6 +506,34 @@ async function postResolvedRollNarration(
   } catch { /* fallback below */ }
 
   await postMaster(campaignId, fallback)
+}
+
+async function collectRollResolutionContext(campaignId: string): Promise<Partial<RollResolutionNarrationInput>> {
+  const activeCharacter = getActiveCharacter()
+  const [campaign, campaignMemory, recentMessages, persistentNpcs, activeEnemies] = await Promise.all([
+    fetch(`/api/campaigns/${campaignId}`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`/api/campaigns/${campaignId}/memory`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`/api/campaigns/${campaignId}/messages`).then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch(`/api/campaigns/${campaignId}/npcs`).then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch(`/api/campaigns/${campaignId}/enemies`).then(r => r.ok ? r.json() : []).catch(() => []),
+  ])
+
+  return {
+    campaign,
+    campaignMemory,
+    activeCharacter,
+    recentMessages: Array.isArray(recentMessages) ? recentMessages.slice(-10) : [],
+    persistentNpcs: Array.isArray(persistentNpcs) ? persistentNpcs : [],
+    activeEnemies: Array.isArray(activeEnemies) ? activeEnemies.filter((e: any) => e.active && e.status !== 'dead') : [],
+    party: activeCharacter ? [{
+      playerName: 'Jogador',
+      characterName: activeCharacter.name,
+      className: activeCharacter.className,
+      subclass: activeCharacter.subclass ?? null,
+      race: activeCharacter.race,
+      level: activeCharacter.level,
+    }] : [],
+  }
 }
 
 function rollOutcome({

@@ -127,7 +127,7 @@ export default async function Home() {
                         transition: 'all 0.25s',
                       }}
                     >
-                      🍺 Entrar na Taverna dos Corvos
+                      Entrar em {primaryCampaign.title}
                     </Link>
                   ) : (
                     <Link href="/dashboard" className="hero-cta">Ver campanhas</Link>

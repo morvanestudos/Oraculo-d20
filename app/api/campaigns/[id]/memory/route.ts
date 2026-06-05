@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '../../../../../lib/prisma'
 import type { CampaignMemory, CampaignMemoryUpdateDTO } from '../../../../../lib/types'
+import { getOfficialCampaign } from '../../../../../lib/officialCampaigns'
 
 function mapCampaignMemory(raw: any): CampaignMemory {
   return {
@@ -47,15 +48,25 @@ export async function GET(request: Request, { params }: { params: { id: string }
         return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
       }
 
+      const officialCampaign = getOfficialCampaign(campaign.title)
+      const defaults = officialCampaign?.initialMemory
+
       const newMemory = await prisma.campaignMemory.create({
         data: {
           campaignId,
-          currentScene: 'início da aventura',
-          currentLocation: `os arredores da campanha ${campaign.title}`,
-          currentObjective: 'explorar e descobrir',
-          currentThreat: 'desconhecido',
-          tensionLevel: 1,
-          turnCount: 0
+          currentScene: defaults?.currentScene ?? 'início da aventura',
+          currentLocation: defaults?.currentLocation ?? `os arredores da campanha ${campaign.title}`,
+          currentObjective: defaults?.currentObjective ?? 'explorar e descobrir',
+          currentThreat: defaults?.currentThreat ?? 'desconhecido',
+          tensionLevel: defaults?.tensionLevel ?? 1,
+          discoveredClues: defaults?.discoveredClues ?? [],
+          activeNPCs: defaults?.activeNPCs ?? [],
+          activeEnemies: defaults?.activeEnemies ?? [],
+          storyFlags: defaults?.storyFlags ?? {},
+          turnCount: defaults?.turnCount ?? 0,
+          lastPlayerAction: defaults?.lastPlayerAction ?? '',
+          lastMasterAction: defaults?.lastMasterAction ?? '',
+          summary: defaults?.summary ?? null
         }
       })
 
@@ -94,22 +105,25 @@ export async function POST(request: Request, { params }: { params: { id: string 
     })
 
     // Create new memory
+    const officialCampaign = getOfficialCampaign(campaign.title)
+    const defaults = officialCampaign?.initialMemory
+
     const memory = await prisma.campaignMemory.create({
       data: {
         campaignId,
-        currentScene: body.currentScene || 'início da aventura',
-        currentLocation: body.currentLocation || `os arredores da campanha ${campaign.title}`,
-        currentObjective: body.currentObjective || 'explorar e descobrir',
-        currentThreat: body.currentThreat || 'desconhecido',
-        tensionLevel: body.tensionLevel || 1,
-        discoveredClues: body.discoveredClues || [],
-        activeNPCs: body.activeNPCs || [],
-        activeEnemies: body.activeEnemies || [],
-        storyFlags: body.storyFlags || {},
-        turnCount: body.turnCount || 0,
-        lastPlayerAction: body.lastPlayerAction || '',
-        lastMasterAction: body.lastMasterAction || '',
-        summary: body.summary || null
+        currentScene: body.currentScene || defaults?.currentScene || 'início da aventura',
+        currentLocation: body.currentLocation || defaults?.currentLocation || `os arredores da campanha ${campaign.title}`,
+        currentObjective: body.currentObjective || defaults?.currentObjective || 'explorar e descobrir',
+        currentThreat: body.currentThreat || defaults?.currentThreat || 'desconhecido',
+        tensionLevel: body.tensionLevel || defaults?.tensionLevel || 1,
+        discoveredClues: body.discoveredClues || defaults?.discoveredClues || [],
+        activeNPCs: body.activeNPCs || defaults?.activeNPCs || [],
+        activeEnemies: body.activeEnemies || defaults?.activeEnemies || [],
+        storyFlags: body.storyFlags || defaults?.storyFlags || {},
+        turnCount: body.turnCount || defaults?.turnCount || 0,
+        lastPlayerAction: body.lastPlayerAction || defaults?.lastPlayerAction || '',
+        lastMasterAction: body.lastMasterAction || defaults?.lastMasterAction || '',
+        summary: body.summary || defaults?.summary || null
       }
     })
 
@@ -144,19 +158,22 @@ export async function PATCH(request: Request, { params }: { params: { id: string
         return NextResponse.json({ error: 'Campaign not found' }, { status: 404 })
       }
 
+      const officialCampaign = getOfficialCampaign(campaign.title)
+      const defaults = officialCampaign?.initialMemory
+
       memory = await prisma.campaignMemory.create({
         data: {
           campaignId,
-          currentScene: body.currentScene || 'início da aventura',
-          currentLocation: body.currentLocation || `os arredores da campanha ${campaign.title}`,
-          currentObjective: body.currentObjective || 'explorar e descobrir',
-          currentThreat: body.currentThreat || 'desconhecido',
-          tensionLevel: body.tensionLevel || 1,
-          discoveredClues: body.discoveredClues || [],
-          activeNPCs: body.activeNPCs || [],
-          activeEnemies: body.activeEnemies || [],
-          storyFlags: body.storyFlags || {},
-          turnCount: body.turnCount || 0,
+          currentScene: body.currentScene || defaults?.currentScene || 'início da aventura',
+          currentLocation: body.currentLocation || defaults?.currentLocation || `os arredores da campanha ${campaign.title}`,
+          currentObjective: body.currentObjective || defaults?.currentObjective || 'explorar e descobrir',
+          currentThreat: body.currentThreat || defaults?.currentThreat || 'desconhecido',
+          tensionLevel: body.tensionLevel || defaults?.tensionLevel || 1,
+          discoveredClues: body.discoveredClues || defaults?.discoveredClues || [],
+          activeNPCs: body.activeNPCs || defaults?.activeNPCs || [],
+          activeEnemies: body.activeEnemies || defaults?.activeEnemies || [],
+          storyFlags: body.storyFlags || defaults?.storyFlags || {},
+          turnCount: body.turnCount || defaults?.turnCount || 0,
           lastPlayerAction: body.lastPlayerAction || '',
           lastMasterAction: body.lastMasterAction || ''
         }

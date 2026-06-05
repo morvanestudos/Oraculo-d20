@@ -46,6 +46,44 @@ const TAVERNA_ACTS: CampaignAct[] = [
   },
 ]
 
+const AURORA_ACTS: CampaignAct[] = [
+  {
+    number: 1,
+    title: 'Ato I',
+    subtitle: 'O Nome que Some',
+    description: 'Os aventureiros chegam ao Grifo Dourado e percebem que o mercador Eldric está sendo apagado da memória de Aurora.',
+    announceFlag: 'act_1_announced',
+  },
+  {
+    number: 2,
+    title: 'Ato II',
+    subtitle: 'Registros Perdidos',
+    description: 'Pistas levam o grupo aos distritos, guildas e arquivos alterados da Cidade das Mil Oportunidades.',
+    announceFlag: 'act_2_announced',
+  },
+  {
+    number: 3,
+    title: 'Ato III',
+    subtitle: 'Guildas e Máscaras',
+    description: 'Intrigas políticas, mercado negro e testemunhas contraditórias revelam quem lucra com os esquecidos.',
+    announceFlag: 'act_3_announced',
+  },
+  {
+    number: 4,
+    title: 'Ato IV',
+    subtitle: 'O Rei Sem Nome',
+    description: 'A ameaça antiga ganha rosto, propósito e alcance: Aurora pode ser apagada inteira.',
+    announceFlag: 'act_4_announced',
+  },
+  {
+    number: 5,
+    title: 'Ato V',
+    subtitle: 'A Fortaleza do Esquecimento',
+    description: 'Os heróis confrontam a força que rouba nomes e decidem o futuro de Elyndria.',
+    announceFlag: 'act_5_announced',
+  },
+]
+
 const GENERIC_ACTS: CampaignAct[] = [
   {
     number: 1,
@@ -85,9 +123,10 @@ const GENERIC_ACTS: CampaignAct[] = [
 ]
 
 export function getCampaignActs(campaignTitle?: string): CampaignAct[] {
-  return (campaignTitle ?? '').toLowerCase().includes('taverna')
-    ? TAVERNA_ACTS
-    : GENERIC_ACTS
+  const title = (campaignTitle ?? '').toLowerCase()
+  if (title.includes('aurora') || title.includes('elyndria') || title.includes('esquecidos')) return AURORA_ACTS
+  if (title.includes('taverna')) return TAVERNA_ACTS
+  return GENERIC_ACTS
 }
 
 export function detectCampaignAct(campaignTitle: string | undefined, memory: CampaignMemory | null): number {
@@ -99,6 +138,39 @@ export function detectCampaignAct(campaignTitle: string | undefined, memory: Cam
   const objective = (memory.currentObjective ?? '').toLowerCase()
   const clues = (memory.discoveredClues ?? []).map(c => c.toLowerCase()).join(' ')
   const tension = memory.tensionLevel ?? 1
+
+  const isAurora = (campaignTitle ?? '').toLowerCase().includes('aurora')
+    || (campaignTitle ?? '').toLowerCase().includes('elyndria')
+    || (campaignTitle ?? '').toLowerCase().includes('esquecidos')
+
+  if (isAurora) {
+    if (
+      flags['ato5_iniciado'] ||
+      flags['fortaleza_revelada'] ||
+      tension >= 9 ||
+      /fortaleza|confronto final|salvar aurora|futuro de elyndria/.test(threat + objective + clues)
+    ) return 5
+
+    if (
+      flags['ato4_iniciado'] ||
+      flags['rei_sem_nome_revelado'] ||
+      tension >= 7 ||
+      /rei sem nome|apagar a realidade|realidade|pal[áa]cio real/.test(threat + objective + clues)
+    ) return 4
+
+    if (
+      flags['ato3_iniciado'] ||
+      flags['guildas_em_conflito'] ||
+      /guilda|mercado negro|companhia das sombras|arena|nobre|pol[íi]tica|conspira/.test(location + objective + clues)
+    ) return 3
+
+    if (
+      flags['ato2_iniciado'] ||
+      /biblioteca|registro|documento|retrato|catacumba|esgoto|distrito/.test(location + objective + clues)
+    ) return 2
+
+    return 1
+  }
 
   if (
     flags['ato5_iniciado'] ||

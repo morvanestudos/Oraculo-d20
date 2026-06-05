@@ -2,6 +2,7 @@ import type { Campaign, Character, Message, CampaignMemory, PendingTest, ActiveN
 import { createOpenAIClient } from './openai'
 import { analyzeAction } from './masterEngine'
 import { narrateAction, progressSceneState, sceneStateFromMemory, buildMemorySummary } from './narrativeEngine'
+import { getOfficialCampaign } from './officialCampaigns'
 
 export type AIMasterRequest = {
   playerMessage: string
@@ -60,6 +61,8 @@ export type RollResolutionContext = {
   outcome: 'success' | 'failure' | 'criticalSuccess' | 'criticalFailure'
   margin: number
   reason?: string | null
+  originalAction?: string | null
+  playerIntent?: string | null
   damage?: {
     dice: string
     rolls: number[]
@@ -69,6 +72,17 @@ export type RollResolutionContext = {
   targetHpBefore?: number | null
   targetHpAfter?: number | null
   targetMaxHp?: number | null
+}
+
+export type RollResolutionNarrationInput = {
+  rollResolution: RollResolutionContext
+  campaign?: Campaign | null
+  campaignMemory?: CampaignMemory | null
+  activeCharacter?: Character | null
+  party?: PartyMember[]
+  recentMessages?: Pick<Message, 'author' | 'role' | 'content' | 'createdAt'>[]
+  persistentNpcs?: Npc[]
+  activeEnemies?: unknown[]
 }
 
 // ─── System prompt ────────────────────────────────────────────────────────────
@@ -892,16 +906,43 @@ function sanitizeRollRequestNarration(request: AIMasterRequest, response: Pick<A
   return buildSafeRollRequestNarration(request, response.rollType, response.difficultyClass)
 }
 
+function buildOfficialCampaignGuide(key: string) {
+  if (key === 'aurora') {
+    return [
+      'GUIA OFICIAL: ELYNDRIA - OS ESQUECIDOS DE AURORA',
+      'Local inicial: O Grifo Dourado, na Cidade de Aurora.',
+      'Premissa: pessoas desaparecem e são apagadas da memória, documentos e retratos.',
+      'Mistério central: descobrir quem é o Rei Sem Nome e impedir o apagamento da realidade.',
+      'NPCs iniciais: Arvik lembra dos esquecidos; Elenna possui livros que mudam; Varek viu alguém desaparecer; Irmã Maera investiga a profecia.',
+      'Locais conhecidos: Aurora, Grifo Dourado, Guilda dos Aventureiros, Mercado Central.',
+      'Locais bloqueados: Catacumbas Antigas, Biblioteca Proibida, Torre dos Magos Astrais, Palácio Real, Fortaleza do Rei Sem Nome.',
+      'Distritos: Comercial, Aventureiros, Arcano, Nobre, Baixo, Esgotos Antigos.',
+      'Quest principal "Os Esquecidos de Aurora": use objectiveId investigate_eldric, prove_memory_erasure, find_lost_records, identify_erasing_force, discover_nameless_king.',
+      'Quests ramificadas: O Livro que Reescreve a Si Mesmo (elenna_trust), O Homem Sem Rosto (faceless_man), Sangue na Arena (arena_blood), Segredos do Mercado Negro (black_market), As Catacumbas de Aurora (aurora_catacombs).',
+      'Inimigos iniciais jogáveis: Ladrão de Rua HP 15 CA 12; Cultista Esquecido HP 20 CA 13; Rato Gigante HP 10 CA 11; Mercenário Corrupto HP 25 CA 14.',
+      'Regra anti-loop de Aurora: não repita continuamente sombras, sussurros, névoa ou algo se aproxima sem consequência real. A cada 2 respostas, a cidade deve mudar.',
+    ].join(' / ')
+  }
+
+  return [
+    'GUIA OFICIAL: A TAVERNA DOS CORVOS',
+    'Quest principal "Os Desaparecidos de Valdrak": use objectiveId talk_arvik, talk_elenna, inspect_back_door, find_forest_tracks, discover_abductor.',
+    'Ramificações: arvik_trust, elenna_help, social_threat, early_combat.',
+  ].join(' / ')
+}
+
 function buildAIMasterPrompt(request: AIMasterRequest): string {
   const mem = request.campaignMemory
   const char = request.activeCharacter
   const tension = mem?.tensionLevel ?? 1
+  const officialCampaign = getOfficialCampaign(request.campaign.title)
 
   // ── Campanha ──
   const campaignCtx = [
     `"${request.campaign.title}"`,
     request.campaign.theme ? `Tema: ${request.campaign.theme}` : '',
     `Nível dos aventureiros: ${request.campaign.level || 1}`,
+    officialCampaign ? buildOfficialCampaignGuide(officialCampaign.key) : '',
   ].filter(Boolean).join(' | ')
 
   // ── Personagem que agiu agora ──
@@ -950,14 +991,25 @@ function buildAIMasterPrompt(request: AIMasterRequest): string {
           : 'INIMIGOS: nenhum no momento',
         mem.summary ? `RESUMO DA SESSÃO: ${mem.summary.slice(0, 180)}` : '',
       ].filter(Boolean).join('\n')
-    : [
-        'LOCAL ATUAL: Taverna dos Corvos — interior escuro, cheiro de cerveja e fumaça',
-        'CENA: Chegada dos aventureiros, chuva lá fora, clientes evitam contato visual',
-        'OBJETIVO: Descobrir o que acontece na região',
-        'AMEAÇA: Rumores de desaparecimentos',
-        'TENSÃO: 2/10 — BAIXA — exploração tranquila',
-        'PISTAS: nenhuma descoberta ainda',
-      ].join('\n')
+    : officialCampaign
+      ? [
+          `LOCAL ATUAL: ${officialCampaign.initialMemory.currentLocation}`,
+          `CENA: ${officialCampaign.initialMemory.currentScene}`,
+          `OBJETIVO: ${officialCampaign.initialMemory.currentObjective}`,
+          `AMEAÇA: ${officialCampaign.initialMemory.currentThreat}`,
+          `TENSÃO: ${officialCampaign.initialMemory.tensionLevel}/10 — ${tensionLabel(officialCampaign.initialMemory.tensionLevel)}`,
+          officialCampaign.initialMemory.discoveredClues.length
+            ? `PISTAS: ${officialCampaign.initialMemory.discoveredClues.join(' | ')}`
+            : 'PISTAS: nenhuma descoberta ainda',
+        ].join('\n')
+      : [
+          'LOCAL ATUAL: Taverna dos Corvos — interior escuro, cheiro de cerveja e fumaça',
+          'CENA: Chegada dos aventureiros, chuva lá fora, clientes evitam contato visual',
+          'OBJETIVO: Descobrir o que acontece na região',
+          'AMEAÇA: Rumores de desaparecimentos',
+          'TENSÃO: 2/10 — BAIXA — exploração tranquila',
+          'PISTAS: nenhuma descoberta ainda',
+        ].join('\n')
 
   // ── NPCs ──
   const npcCtx = formatNPCs(mem?.activeNPCs ?? [])
@@ -1098,9 +1150,16 @@ function fallbackRollResolutionNarration(context: RollResolutionContext): string
   if (context.outcome === 'criticalFailure') {
     return [
       `${context.actorName} força a ação, mas o dado cobra o preço.`,
-      `A tentativa falha de forma perigosa e deixa ${context.actorName} em posição ruim.`,
+      context.rollType === 'carisma'
+        ? `${target} percebe a pressão e fecha a expressão. Agora ele quer algo em troca antes de dizer qualquer coisa útil.`
+        : context.rollType === 'ataque'
+          ? `${target} escapa do pior e encontra uma abertura perigosa para reagir.`
+          : 'A tentativa perturba a cena e transforma a pista em um problema imediato.',
       '',
-      'O que você faz agora?',
+      'O que você faz?',
+      '• Recuar e mudar a abordagem',
+      '• Assumir o custo da falha',
+      '• Pedir ajuda a outro personagem',
     ].join('\n')
   }
 
@@ -1109,54 +1168,84 @@ function fallbackRollResolutionNarration(context: RollResolutionContext): string
       `${context.actorName} tenta, mas o resultado não vence a dificuldade.`,
       context.rollType === 'ataque'
         ? `${target} evita o golpe e continua ameaçando.`
-        : 'A resposta não vem completa; resta uma pista incompleta e um risco novo.',
+        : context.rollType === 'carisma'
+          ? `${target} resiste. Ele não entrega a verdade, mas sua hesitação denuncia que existe algo escondido.`
+          : 'A resposta não vem completa; resta uma pista parcial, ligada a um risco novo.',
       '',
-      'O que você faz agora?',
+      'O que você faz?',
+      '• Tentar outro caminho',
+      '• Pressionar apesar do risco',
+      '• Chamar outro personagem para ajudar',
     ].join('\n')
   }
 
   const defeated = context.targetHpAfter != null && context.targetHpAfter <= 0
+  const highSuccess = context.outcome === 'criticalSuccess' || context.margin >= 5
   return [
     context.outcome === 'criticalSuccess'
       ? `${context.actorName} transforma a rolagem em um momento decisivo.`
       : `${context.actorName} supera a dificuldade por ${context.margin >= 0 ? `margem ${context.margin}` : 'pouco'}.`,
     context.rollType === 'ataque'
       ? `${target} sofre a consequência real do golpe.`
-      : 'A ação revela uma consequência concreta no mundo.',
+      : context.rollType === 'carisma'
+        ? `${target} cede uma informação útil, proporcional à firmeza da abordagem.`
+        : highSuccess
+          ? 'A ação revela uma pista forte e aponta uma direção clara.'
+          : 'A ação revela uma pista concreta.',
     ...damageLines,
     defeated
-      ? `${target} cai derrotado.`
+      ? `Entre os restos de ${target}, algo chama atenção: uma pista ou objeto ligado ao conflito principal.`
       : context.targetHpAfter != null
         ? `${target} ainda está de pé.`
         : '',
     '',
-    'Qual é o próximo movimento?',
+    'O que você faz?',
+    '• Examinar a pista revelada',
+    '• Avançar para o próximo perigo',
+    '• Chamar outro personagem para agir',
   ].filter(Boolean).join('\n')
 }
 
-export async function generateRollResolutionNarration(context: RollResolutionContext): Promise<string> {
+export async function generateRollResolutionNarration(input: RollResolutionContext | RollResolutionNarrationInput): Promise<string> {
+  const context = 'rollResolution' in input ? input.rollResolution : input
+  const extra = 'rollResolution' in input ? input : null
   const client = createOpenAIClient()
   if (!client) return fallbackRollResolutionNarration(context)
 
   const prompt = `Narre a consequência de uma rolagem já resolvida no RPG Oráculo d20.
 
 REGRAS:
+- Você está narrando DEPOIS que o sistema já calculou o dado.
+- Não peça nova rolagem.
+- Não responda apenas "Sucesso", "Falha", "Você convence", "Você acerta" ou "Uma pista aparece".
 - Não recalcule dado.
 - Não invente dano.
 - Não altere HP.
-- Use somente os números recebidos.
-- Se outcome=success, narre sucesso.
-- Se outcome=failure, narre falha com consequência.
-- Se outcome=criticalSuccess, narre momento épico.
-- Se outcome=criticalFailure, narre complicação.
-- Se targetHpAfter <= 0, narre derrota do inimigo.
-- Se targetHpAfter > 0, diga que o inimigo continua de pé.
+- Não mude sucesso/falha.
+- Use os números para criar consequência narrativa.
+- Se outcome=success, narre sucesso concreto.
+- Se outcome=failure, narre falha com custo ou complicação, sem travar a história.
+- Se outcome=criticalSuccess ou margem >= 5, entregue algo significativo.
+- Se outcome=criticalFailure, crie complicação clara.
+- Se rollType=ataque e targetHpAfter <= 0, narre derrota do inimigo e crie gancho pós-combate: loot, pista, reação ou novo perigo.
+- Se rollType=ataque e targetHpAfter > 0, diga que o inimigo continua de pé.
+- Se rollType=carisma, faça o NPC reagir e revelar/resistir proporcionalmente à margem.
+- Se rollType=investigacao, arcano, percepcao ou sabedoria, entregue pista concreta. Em sucesso alto, entregue pista + direção + consequência.
 - Máximo 3 parágrafos curtos.
 - Inclua linhas de dano/HP quando damage e HP existirem.
-- Termine com uma próxima escolha curta.
+- Termine com 2 a 4 escolhas úteis em bullets.
 
 Contexto JSON:
-${JSON.stringify(context, null, 2)}
+${JSON.stringify({
+  rollResolution: context,
+  campaign: extra?.campaign ?? null,
+  campaignMemory: extra?.campaignMemory ?? null,
+  activeCharacter: extra?.activeCharacter ?? null,
+  party: extra?.party ?? [],
+  recentMessages: extra?.recentMessages ?? [],
+  persistentNpcs: extra?.persistentNpcs ?? [],
+  activeEnemies: extra?.activeEnemies ?? [],
+}, null, 2)}
 
 Responda apenas com a narração, sem JSON.`
 

@@ -1,32 +1,12 @@
 import type { Quest, QuestCreateDTO, QuestObjective, QuestPatchDTO, QuestUpdate } from './types'
+import { TAVERNA_CAMPAIGN } from './officialCampaigns'
 
 export type QuestFeedbackEvent = {
   type: 'created' | 'objective' | 'consequence' | 'completed' | 'failed'
   message: string
 }
 
-export const TAVERNA_MAIN_QUEST: QuestCreateDTO = {
-  title: 'Os Desaparecidos de Valdrak',
-  description: 'Moradores somem sob a chuva, e cada pista aponta para a floresta além da Taverna dos Corvos.',
-  status: 'active',
-  questType: 'main',
-  reward: '100 XP',
-  priority: 100,
-  objectiveList: [
-    { id: 'talk_arvik', label: 'Conversar com Arvik, o taverneiro', status: 'active', completedAt: null },
-    { id: 'talk_elenna', label: 'Falar com Elenna, a viúva', status: 'active', completedAt: null },
-    { id: 'inspect_back_door', label: 'Investigar a porta dos fundos', status: 'active', completedAt: null },
-    { id: 'find_forest_tracks', label: 'Encontrar rastros rumo à floresta', status: 'active', completedAt: null },
-    { id: 'discover_abductor', label: 'Descobrir quem está levando os moradores', status: 'active', completedAt: null },
-  ],
-  objectives: [
-    { id: 'talk_arvik', label: 'Conversar com Arvik, o taverneiro', status: 'active', done: false },
-    { id: 'talk_elenna', label: 'Falar com Elenna, a viúva', status: 'active', done: false },
-    { id: 'inspect_back_door', label: 'Investigar a porta dos fundos', status: 'active', done: false },
-    { id: 'find_forest_tracks', label: 'Encontrar rastros rumo à floresta', status: 'active', done: false },
-    { id: 'discover_abductor', label: 'Descobrir quem está levando os moradores', status: 'active', done: false },
-  ],
-}
+export const TAVERNA_MAIN_QUEST: QuestCreateDTO = TAVERNA_CAMPAIGN.mainQuest
 
 const BRANCH_QUESTS: Record<string, QuestCreateDTO> = {
   arvik_trust: {
@@ -83,6 +63,73 @@ const BRANCH_QUESTS: Record<string, QuestCreateDTO> = {
       { id: 'inspect_enemy_body', label: 'Examinar o corpo do inimigo', status: 'active', completedAt: null },
       { id: 'collect_loot_clues', label: 'Recolher pistas do loot', status: 'active', completedAt: null },
     ],
+  },
+  elenna_trust: {
+    title: 'O Livro que Reescreve a Si Mesmo',
+    description: 'Elenna permite acesso a um volume arcano que muda suas próprias páginas quando alguém menciona os esquecidos.',
+    status: 'active',
+    questType: 'secondary',
+    branchKey: 'elenna_trust',
+    priority: 60,
+    objectiveList: [
+      { id: 'gain_elenna_trust', label: 'Ganhar a confiança de Elenna', status: 'active', completedAt: null },
+      { id: 'read_rewriting_book', label: 'Examinar o livro que muda sozinho', status: 'active', completedAt: null },
+      { id: 'recover_eldric_entry', label: 'Recuperar uma entrada sobre Eldric', status: 'active', completedAt: null },
+    ],
+    reward: 'Pista sobre registros perdidos',
+  },
+  faceless_man: {
+    title: 'O Homem Sem Rosto',
+    description: 'Relatos de desaparecimentos apontam para uma figura sem rosto preservada em retratos alterados.',
+    status: 'active',
+    questType: 'secondary',
+    branchKey: 'faceless_man',
+    priority: 55,
+    objectiveList: [
+      { id: 'collect_portrait_reports', label: 'Coletar relatos de retratos alterados', status: 'active', completedAt: null },
+      { id: 'identify_faceless_mark', label: 'Identificar a marca deixada pela figura sem rosto', status: 'active', completedAt: null },
+    ],
+    reward: 'Pista sobre o Rei Sem Nome',
+  },
+  arena_blood: {
+    title: 'Sangue na Arena',
+    description: 'Um torneio da Arena de Combate esconde apostas, sumiços e lutadores apagados da memória da plateia.',
+    status: 'active',
+    questType: 'secondary',
+    branchKey: 'arena_blood',
+    priority: 50,
+    objectiveList: [
+      { id: 'enter_or_investigate_arena', label: 'Entrar no torneio ou investigar os bastidores', status: 'active', completedAt: null },
+      { id: 'find_missing_fighter', label: 'Encontrar evidência de um lutador apagado', status: 'active', completedAt: null },
+    ],
+    reward: 'Reputação na Guilda dos Aventureiros',
+  },
+  black_market: {
+    title: 'Segredos do Mercado Negro',
+    description: 'O Distrito Baixo guarda documentos vendidos antes de sumirem dos registros oficiais.',
+    status: 'active',
+    questType: 'secondary',
+    branchKey: 'black_market',
+    priority: 50,
+    objectiveList: [
+      { id: 'reach_lower_district', label: 'Encontrar uma rota segura pelo Distrito Baixo', status: 'active', completedAt: null },
+      { id: 'buy_or_steal_lost_records', label: 'Obter registros perdidos no mercado negro', status: 'active', completedAt: null },
+    ],
+    reward: 'Contato com a Companhia das Sombras',
+  },
+  aurora_catacombs: {
+    title: 'As Catacumbas de Aurora',
+    description: 'Os esgotos antigos escondem uma rota para as catacumbas bloqueadas sob a cidade.',
+    status: 'active',
+    questType: 'secondary',
+    branchKey: 'aurora_catacombs',
+    priority: 55,
+    objectiveList: [
+      { id: 'enter_old_sewers', label: 'Entrar nos esgotos antigos', status: 'active', completedAt: null },
+      { id: 'survive_under_city', label: 'Sobreviver aos monstros subterrâneos', status: 'active', completedAt: null },
+      { id: 'unlock_catacombs', label: 'Desbloquear o acesso às Catacumbas Antigas', status: 'active', completedAt: null },
+    ],
+    reward: 'Desbloqueio das Catacumbas Antigas',
   },
 }
 

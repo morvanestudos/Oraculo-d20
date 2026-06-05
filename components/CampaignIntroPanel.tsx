@@ -1,24 +1,7 @@
 'use client'
 import React, { useEffect, useState } from 'react'
+import { getOfficialCampaign } from '../lib/officialCampaigns'
 import type { Campaign, Quest } from '../lib/types'
-
-const TAVERNA_INTRO =
-  'Uma chuva fina cobre os telhados tortos da vila de Valdrak. Na velha Taverna dos Corvos, ' +
-  'viajantes cochicham sobre desaparecimentos durante a madrugada. Entre o som da chuva e o ' +
-  'ranger da madeira, algo observa do lado de fora.'
-
-export const TAVERNA_INITIAL_MESSAGE =
-  'A porta da Taverna dos Corvos range quando vocês entram. O salão silencia por um instante. ' +
-  'O taverneiro observa por trás do balcão, enquanto a chuva bate contra as janelas. ' +
-  'Algo nesta vila está profundamente errado. O que vocês fazem?'
-
-const TAVERNA_FALLBACK_OBJECTIVES = [
-  'Investigar os desaparecimentos',
-  'Conversar com o taverneiro',
-  'Explorar a floresta ao norte',
-  'Descobrir a origem dos cantos',
-  'Encontrar o culto oculto',
-]
 
 type Props = {
   campaign: Campaign
@@ -43,16 +26,16 @@ export default function CampaignIntroPanel({ campaign, onStart, onDismiss, isSta
       .catch(() => {})
   }, [campaign.id])
 
-  const isTaverna = (campaign.title ?? '').toLowerCase().includes('taverna dos corvos')
-  const introText = isTaverna ? TAVERNA_INTRO : campaign.description
+  const officialCampaign = getOfficialCampaign(campaign.title)
+  const introText = officialCampaign?.intro ?? campaign.description
 
   const objectives =
     quests.length > 0
       ? quests.map(q => q.title)
-      : (isTaverna ? TAVERNA_FALLBACK_OBJECTIVES : [])
+      : (officialCampaign?.fallbackObjectives ?? [])
 
-  const initialMessage = isTaverna
-    ? TAVERNA_INITIAL_MESSAGE
+  const initialMessage = officialCampaign
+    ? officialCampaign.initialMessage
     : campaign.description
       ? `${campaign.description}\n\nO Mestre aguarda. Apresente seu personagem e declare sua primeira ação.`
       : 'As tochas tremulam enquanto a aventura começa. Apresentem seus personagens e declarem suas primeiras ações, viajantes.'

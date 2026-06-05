@@ -1,23 +1,42 @@
 import type { Campaign, Character, CampaignMemory } from './types'
 import { createOpenAIClient } from './openai'
+import { getOfficialCampaign } from './officialCampaigns'
 
-const SYSTEM_PROMPT = `Você é um narrador de RPG dark fantasy cinematográfico. Escreve prólogos imersivos de chegada de personagens à cidade de Valdrak e à Taverna dos Corvos.
+const SYSTEM_PROMPT = `Você é um narrador de RPG dark fantasy cinematográfico. Escreve prólogos imersivos de chegada de personagens ao local inicial da campanha.
 
 Regras obrigatórias:
 - Escreva de 4 a 7 parágrafos curtos e cinematográficos.
 - Tom sombrio, poético e envolvente. Sem humor.
 - Nunca use nomes protegidos de marcas (D&D, Forgotten Realms, Wizards, etc).
 - Inclua o nome do personagem e, se disponível, sua espécie e classe de forma natural.
-- Mencione Valdrak, seus telhados tortos e a chuva fina da noite.
-- Mencione desaparecimentos noturnos misteriosos de moradores.
-- Mencione rumores de cantos ou sons estranhos vindos da floresta ao norte.
+- Use o local inicial, NPCs, ameaça e objetivo da campanha informados pelo usuário.
 - Explique levemente como o personagem chegou até ali — por destino, acaso ou chamado.
 - Não decida ações futuras do jogador. Não controle suas decisões.
 - Escreva em português do Brasil.
 - O último parágrafo DEVE terminar com exatamente esta pergunta: "O que você faz ao cruzar a porta da taverna?"
 - Responda apenas com o texto do prólogo. Sem JSON, sem títulos, sem marcadores.`
 
-function buildFallback(character: Character): string {
+function buildFallback(campaign: Campaign, character: Character): string {
+  const officialCampaign = getOfficialCampaign(campaign.title)
+  if (officialCampaign?.key === 'aurora') {
+    const raceClass = [character.race, character.className].filter(Boolean).join(' ')
+    const intro = raceClass
+      ? `${character.name} — ${raceClass} —`
+      : `${character.name} —`
+
+    return `Aurora se ergue diante de você como uma promessa grande demais para caber nos próprios muros. Torres, mercados, bandeiras de guildas e ruas cheias de ouro, suor e ambição. A Cidade das Mil Oportunidades não dorme. Ela negocia, conspira e devora nomes.
+
+${intro} chegou a Aurora por um caminho que parecia escolha, destino ou dívida. No Distrito dos Aventureiros, cada esquina oferece contrato, perigo e mentira. Mas há algo errado no modo como as pessoas desviam o olhar quando o nome Eldric aparece.
+
+Um mercador desapareceu. O pior não é o sumiço. O pior é que ninguém se lembra dele. Registros falham, retratos mudam, recibos perdem tinta, e famílias falam como se nunca tivessem amado quem foi apagado.
+
+O Grifo Dourado está cheio quando você chega. Canecas batem, moedas tilintam, aventureiros discutem missões. Atrás do balcão, Arvik encontra um papel com uma assinatura quase apagada e empalidece como quem acaba de lembrar de um morto que a cidade inteira esqueceu.
+
+Do lado de fora, Aurora ruge. Dentro da taverna, a palavra Eldric ainda respira por alguns segundos.
+
+O que você faz ao cruzar a porta da taverna?`
+  }
+
   const raceClass = [character.race, character.className].filter(Boolean).join(' ')
   const intro = raceClass
     ? `${character.name} — ${raceClass} —`
@@ -44,8 +63,9 @@ export async function generatePrologue(
   memory?: CampaignMemory | null
 ): Promise<string> {
   const openai = createOpenAIClient()
-  if (!openai) return buildFallback(character)
+  if (!openai) return buildFallback(campaign, character)
 
+  const officialCampaign = getOfficialCampaign(campaign.title)
   const raceClass = [character.race, character.className].filter(Boolean).join(', ')
   const charDesc = raceClass ? `${character.name} (${raceClass})` : character.name
   const backstory = character.story?.slice(0, 250)
@@ -56,8 +76,15 @@ export async function generatePrologue(
     backstory ? `Backstory: ${backstory}` : '',
     memory?.currentObjective ? `Objetivo da campanha: ${memory.currentObjective}` : '',
     memory?.currentThreat ? `Ameaça atual: ${memory.currentThreat}` : '',
+    officialCampaign ? `Local inicial oficial: ${officialCampaign.initialMemory.currentLocation}` : '',
+    officialCampaign ? `NPCs iniciais: ${officialCampaign.initialNpcs.map(npc => `${npc.name} (${npc.role})`).join(', ')}` : '',
+    officialCampaign?.key === 'aurora'
+      ? 'Obrigatório: mencione Aurora, o Grifo Dourado, o mercador Eldric, documentos/retratos que mudam e o apagamento de pessoas da memória.'
+      : '',
     '',
-    `Escreva o prólogo de chegada de ${character.name} à Taverna dos Corvos em Valdrak.`,
+    officialCampaign?.key === 'aurora'
+      ? `Escreva o prólogo de chegada de ${character.name} ao Grifo Dourado em Aurora.`
+      : `Escreva o prólogo de chegada de ${character.name} à Taverna dos Corvos em Valdrak.`,
   ].filter(Boolean).join('\n')
 
   try {
@@ -76,6 +103,6 @@ export async function generatePrologue(
     return text
   } catch (error) {
     console.error('Falha ao gerar prólogo via OpenAI:', error)
-    return buildFallback(character)
+    return buildFallback(campaign, character)
   }
 }

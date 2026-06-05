@@ -1,10 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '../../../../../../lib/prisma'
-import { TAVERNA_MAIN_QUEST } from '../../../../../../lib/questSystem'
-
-function isTaverna(title: string) {
-  return title.toLowerCase().includes('taverna dos corvos')
-}
+import { getOfficialCampaign } from '../../../../../../lib/officialCampaigns'
 
 export async function POST(_req: Request, { params }: { params: { id: string } }) {
   const campaignId = Number(params.id)
@@ -18,8 +14,9 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 })
     }
 
-    if (!isTaverna(campaign.title ?? '')) {
-      return NextResponse.json({ seeded: false, reason: 'not_taverna' })
+    const officialCampaign = getOfficialCampaign(campaign.title)
+    if (!officialCampaign) {
+      return NextResponse.json({ seeded: false, reason: 'not_official_campaign' })
     }
 
     // Check if main quest already exists
@@ -31,17 +28,19 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ seeded: false, reason: 'already_exists', questId: String(existing.id) })
     }
 
+    const mainQuest = officialCampaign.mainQuest
+
     const quest = await prisma.quest.create({
       data: {
         campaignId,
-        title: TAVERNA_MAIN_QUEST.title,
-        description: TAVERNA_MAIN_QUEST.description,
-        status: TAVERNA_MAIN_QUEST.status ?? 'active',
-        questType: TAVERNA_MAIN_QUEST.questType ?? 'main',
-        objectives: (TAVERNA_MAIN_QUEST.objectives ?? []) as any,
-        objectiveList: (TAVERNA_MAIN_QUEST.objectiveList ?? []) as any,
-        reward: TAVERNA_MAIN_QUEST.reward,
-        priority: TAVERNA_MAIN_QUEST.priority ?? 100,
+        title: mainQuest.title,
+        description: mainQuest.description,
+        status: mainQuest.status ?? 'active',
+        questType: mainQuest.questType ?? 'main',
+        objectives: (mainQuest.objectives ?? []) as any,
+        objectiveList: (mainQuest.objectiveList ?? []) as any,
+        reward: mainQuest.reward,
+        priority: mainQuest.priority ?? 100,
       }
     })
 

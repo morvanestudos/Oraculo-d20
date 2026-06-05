@@ -557,7 +557,7 @@ export default function ChatBox({ campaignId, campaign, character, playerName, o
           campaignId,
           type: aiResponse.rollType as any,
           difficultyClass: aiResponse.difficultyClass ?? (actionAnalysis.difficulty ?? 14),
-          reason: aiResponse.rollType,
+          reason: playerMessage.content,
           createdAt: new Date().toISOString()
         }
       }

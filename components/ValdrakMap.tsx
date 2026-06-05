@@ -17,7 +17,7 @@ type MapLocation = {
   discoveryHint: string  // keyword to look for in memory to mark as known
 }
 
-const LOCATIONS: MapLocation[] = [
+const VALDRAK_LOCATIONS: MapLocation[] = [
   {
     id: 'taverna',
     label: 'Taverna dos Corvos',
@@ -68,8 +68,7 @@ const LOCATIONS: MapLocation[] = [
   },
 ]
 
-// Paths between locations [from, to] by id
-const PATHS: [string, string][] = [
+const VALDRAK_PATHS: [string, string][] = [
   ['taverna',  'praca'],
   ['praca',    'poco'],
   ['praca',    'floresta'],
@@ -79,15 +78,138 @@ const PATHS: [string, string][] = [
   ['praca',    'capela'],
 ]
 
-function detectCurrentLocation(memory: CampaignMemory | null): string {
-  if (!memory) return 'taverna'
-  const combined = ((memory.currentLocation ?? '') + ' ' + (memory.currentScene ?? '')).toLowerCase()
-  const match = LOCATIONS.find(loc => combined.includes(loc.discoveryHint))
-  return match?.id ?? 'taverna'
+const AURORA_LOCATIONS: MapLocation[] = [
+  {
+    id: 'grifo',
+    label: 'O Grifo Dourado',
+    icon: '🍺',
+    desc: 'Taverna inicial, ponto de encontro de aventureiros, rumores e missões.',
+    cx: 44, cy: 55,
+    discoveryHint: 'grifo',
+  },
+  {
+    id: 'guilda',
+    label: 'Guilda dos Aventureiros',
+    icon: '⚔️',
+    desc: 'Quadro de missões, treinadores e arena de combate.',
+    cx: 36, cy: 42,
+    discoveryHint: 'guilda',
+  },
+  {
+    id: 'mercado',
+    label: 'Mercado Central',
+    icon: '🪙',
+    desc: 'Ferreiros, alquimistas, mercadores e contratos de escolta.',
+    cx: 58, cy: 45,
+    discoveryHint: 'mercado',
+  },
+  {
+    id: 'arcano',
+    label: 'Distrito Arcano',
+    icon: '✦',
+    desc: 'Academia de Magia de Nythra, Biblioteca Arcana e laboratórios.',
+    cx: 70, cy: 24,
+    discoveryHint: 'arcano',
+  },
+  {
+    id: 'nobre',
+    label: 'Distrito Nobre',
+    icon: '♛',
+    desc: 'Mansões, política, conspirações e acesso ao Palácio Real.',
+    cx: 78, cy: 62,
+    discoveryHint: 'nobre',
+  },
+  {
+    id: 'baixo',
+    label: 'Distrito Baixo',
+    icon: '🗡️',
+    desc: 'Tavernas, ladrões, criminosos e mercado negro.',
+    cx: 26, cy: 72,
+    discoveryHint: 'baixo',
+  },
+  {
+    id: 'esgotos',
+    label: 'Esgotos Antigos',
+    icon: '◉',
+    desc: 'Área explorável com monstros, segredos, tesouros e rotas subterrâneas.',
+    cx: 52, cy: 82,
+    discoveryHint: 'esgoto',
+  },
+  {
+    id: 'catacumbas',
+    label: 'Catacumbas Antigas',
+    icon: '⚱',
+    desc: 'Local bloqueado sob Aurora. Registros esquecidos podem abrir caminho.',
+    cx: 66, cy: 86,
+    discoveryHint: 'catacumba',
+  },
+  {
+    id: 'palacio',
+    label: 'Palácio Real',
+    icon: '◆',
+    desc: 'Centro de poder de Aurora. Intrigas nobres escondem nomes apagados.',
+    cx: 88, cy: 44,
+    discoveryHint: 'palácio',
+  },
+  {
+    id: 'fortaleza',
+    label: 'Fortaleza do Rei Sem Nome',
+    icon: '◇',
+    desc: 'Destino final bloqueado, ligado ao apagamento da realidade.',
+    cx: 14, cy: 16,
+    discoveryHint: 'fortaleza',
+  },
+]
+
+const AURORA_PATHS: [string, string][] = [
+  ['grifo', 'guilda'],
+  ['grifo', 'mercado'],
+  ['guilda', 'baixo'],
+  ['mercado', 'arcano'],
+  ['mercado', 'nobre'],
+  ['baixo', 'esgotos'],
+  ['esgotos', 'catacumbas'],
+  ['nobre', 'palacio'],
+  ['palacio', 'fortaleza'],
+]
+
+function getMapConfig(campaignTitle?: string) {
+  const title = (campaignTitle ?? '').toLowerCase()
+  if (title.includes('aurora') || title.includes('elyndria') || title.includes('esquecidos')) {
+    return {
+      title: 'Cidade de Aurora',
+      defaultLocationId: 'grifo',
+      locations: AURORA_LOCATIONS,
+      paths: AURORA_PATHS,
+      alwaysKnown: ['grifo', 'guilda', 'mercado'],
+    }
+  }
+  if (title.includes('taverna dos corvos')) {
+    return {
+      title: 'Vila de Valdrak',
+      defaultLocationId: 'taverna',
+      locations: VALDRAK_LOCATIONS,
+      paths: VALDRAK_PATHS,
+      alwaysKnown: ['taverna'],
+    }
+  }
+  return null
 }
 
-function detectKnownLocations(memory: CampaignMemory | null, currentId: string): Set<string> {
-  const known = new Set<string>(['taverna', currentId])
+function detectCurrentLocation(memory: CampaignMemory | null, locations: MapLocation[], defaultLocationId: string): string {
+  if (!memory) return defaultLocationId
+  const combined = ((memory.currentLocation ?? '') + ' ' + (memory.currentScene ?? '')).toLowerCase()
+  const match = locations.find(loc => combined.includes(loc.discoveryHint))
+  return match?.id ?? defaultLocationId
+}
+
+function detectKnownLocations(
+  memory: CampaignMemory | null,
+  currentId: string,
+  locations: MapLocation[],
+  alwaysKnown: string[]
+): Set<string> {
+  const known = new Set<string>([...alwaysKnown, currentId])
   if (!memory) return known
 
   const combined = [
@@ -99,7 +221,7 @@ function detectKnownLocations(memory: CampaignMemory | null, currentId: string):
     memory.summary ?? '',
   ].join(' ').toLowerCase()
 
-  LOCATIONS.forEach(loc => {
+  locations.forEach(loc => {
     if (combined.includes(loc.discoveryHint)) known.add(loc.id)
   })
 
@@ -128,18 +250,20 @@ export default function ValdrakMap({ campaignId, campaignTitle }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId])
 
-  const isTaverna = (campaignTitle ?? '').toLowerCase().includes('taverna dos corvos')
-  if (!isTaverna && !loading) return null   // Only show for this campaign for now
+  const mapConfig = getMapConfig(campaignTitle)
+  if (!mapConfig && !loading) return null
 
-  const currentId = detectCurrentLocation(memory)
-  const knownIds  = detectKnownLocations(memory, currentId)
+  const locations = mapConfig?.locations ?? VALDRAK_LOCATIONS
+  const paths = mapConfig?.paths ?? VALDRAK_PATHS
+  const currentId = detectCurrentLocation(memory, locations, mapConfig?.defaultLocationId ?? 'taverna')
+  const knownIds  = detectKnownLocations(memory, currentId, locations, mapConfig?.alwaysKnown ?? ['taverna'])
 
   // Convert cx/cy (0-100) to SVG viewport coords (SVG is 280×180)
   const W = 280, H = 180
   const cx = (pct: number) => (pct / 100) * W
   const cy = (pct: number) => (pct / 100) * H
 
-  const hoveredLoc = LOCATIONS.find(l => l.id === hovered)
+  const hoveredLoc = locations.find(l => l.id === hovered)
 
   return (
     <>
@@ -177,7 +301,7 @@ export default function ValdrakMap({ campaignId, campaignTitle }: Props) {
             fontFamily: 'Cinzel, serif', fontSize: '0.68rem', fontWeight: 700,
             color: '#c4a870', textTransform: 'uppercase', letterSpacing: '0.2em',
           }}>
-            Vila de Valdrak
+            {mapConfig?.title ?? 'Mapa da Campanha'}
           </span>
           <span style={{ marginLeft: 'auto', fontSize: '0.65rem', color: 'rgba(212,177,106,0.35)' }}>
             {collapsed ? '▸' : '▾'}
@@ -215,9 +339,9 @@ export default function ValdrakMap({ campaignId, campaignTitle }: Props) {
                     style={{ display: 'block', width: '100%', height: 'auto' }}
                   >
                     {/* Paths */}
-                    {PATHS.map(([aId, bId]) => {
-                      const a = LOCATIONS.find(l => l.id === aId)!
-                      const b = LOCATIONS.find(l => l.id === bId)!
+                    {paths.map(([aId, bId]) => {
+                      const a = locations.find(l => l.id === aId)!
+                      const b = locations.find(l => l.id === bId)!
                       const aKnown = knownIds.has(aId)
                       const bKnown = knownIds.has(bId)
                       const visible = aKnown || bKnown
@@ -234,7 +358,7 @@ export default function ValdrakMap({ campaignId, campaignTitle }: Props) {
                     })}
 
                     {/* Location markers */}
-                    {LOCATIONS.map(loc => {
+                    {locations.map(loc => {
                       const known   = knownIds.has(loc.id)
                       const current = loc.id === currentId
                       const isHov   = hovered === loc.id
