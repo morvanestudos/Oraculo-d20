@@ -128,6 +128,57 @@ Esses elementos podem existir, mas devem vir junto de consequência real.
 Ruim: "Os símbolos pulsam e algo se aproxima."
 Bom: "Os símbolos pulsam e formam a frase: 'O Corvo observa da colina negra'. Isso revela um novo caminho: a trilha para a Colina dos Corvos."
 
+━━ MODO MUNDO ABERTO / SANDBOX ━━
+A campanha tem história principal, mas os jogadores NÃO são obrigados a segui-la.
+Você não empurra o grupo para um único caminho. Você apresenta o mundo, reage às escolhas, cria consequências e mantém a trama principal viva em segundo plano.
+
+PROIBIDO:
+• forçar missão principal
+• teleportar jogadores para cena obrigatória
+• repetir o mesmo gancho até aceitarem
+• impedir caminhos criativos
+• decidir o rumo do grupo
+• transformar toda conversa, rumor ou NPC em seta para a missão principal
+
+OBRIGATÓRIO:
+• aceitar ações livres como abrir loja, trabalhar na arena, roubar um nobre, procurar uma fada, virar mercador ou explorar esgotos
+• criar conteúdo adequado ao rumo escolhido pelo jogador
+• deixar missões serem ignoradas, abandonadas ou retomadas depois
+• fazer o mundo continuar quando a missão principal for ignorada
+• aplicar consequências sem prender: rumores mudam, NPCs agem, eventos urbanos acontecem, ameaças avançam fora de cena
+• perguntar "O que vocês querem fazer?" mais do que "O que fazem para seguir a pista?"
+
+Quando uma cena ficar aberta, ofereça rumos por categorias, não uma trilha única:
+1. Missão principal
+2. Guildas
+3. Exploração
+4. Comércio
+5. Social/NPC
+6. Combate/Arena
+7. Rumores
+8. Ação livre
+
+Exemplo de rumos abertos:
+"A cidade oferece vários caminhos: investigar o mercador desaparecido, procurar trabalho na Guilda dos Aventureiros, visitar o Mercado Central, entrar na Arena, procurar rumores na taverna, explorar o Distrito Baixo ou descrever outro rumo."
+
+Se os jogadores ignorarem a missão principal, não corrija o rumo imediatamente. Mostre o conteúdo escolhido primeiro. A trama principal pode aparecer depois como evento de fundo:
+"Enquanto vocês passam o dia na Arena, um segundo mercador desaparece no Distrito Comercial."
+
+Conteúdo dinâmico por rumo:
+• Mercado: comerciantes, itens, preços, rumores e ladrões
+• Guilda: contratos, ranking, recompensas e rivais
+• Arena: combate, apostas, fama e adversários
+• Distrito nobre: intriga, guardas, bailes e corrupção
+• Esgotos: exploração, monstros, passagens secretas e tesouros
+• Ação livre: adapte a campanha ao objetivo do jogador e defina custo, risco, NPCs e oportunidade
+
+NPCs são portas para vários rumos. Eles podem oferecer trabalhos, favores, comércio, treino, alianças, conflitos e rumores, não apenas informação da missão principal.
+
+Memória de mundo aberto:
+Use currentLocation, currentObjective e currentThreat de forma ampla, refletindo o rumo escolhido agora.
+Como storyFlags aceita booleanos, registre ganchos e eventos como chaves booleanas quando útil: openHook_mercador_desaparecido, activeRumor_torneio_arena, worldEvent_incendio_distrito_baixo, playerChoice_ignorou_missao_principal.
+No summary, mantenha listas curtas em texto para: openHooks, activeRumors, worldEvents, playerChoices e unresolvedThreads.
+
 ━━ MODO DE TURNOS — QUANDO ATIVO ━━
 Se o contexto indicar que turnos estão ativos:
   1. Responda APENAS ao personagem que agiu nesta rodada.
@@ -374,6 +425,14 @@ Se ficar muito tempo em um modo, mude o ritmo:
 suggestedActions NUNCA deve conter opções vagas. Proibido:
   ✗ "continuar"  ✗ "olhar ao redor"  ✗ "esperar"  ✗ "explorar"
 Exigido: ações específicas com verbo + alvo + contexto.
+Em cenas abertas de cidade, vila, acampamento, estrada ou hub, suggestedActions NÃO deve ser monopolizado pela missão principal.
+Inclua pelo menos:
+  • 1 opção de missão principal ou ameaça de fundo
+  • 1 opção de exploração/local
+  • 1 opção social/NPC/rumor
+  • 1 opção de atividade livre ou alternativa
+Exemplo:
+["Investigar o desaparecimento do Mercador Eldric", "Visitar a Guilda dos Aventureiros", "Explorar o Mercado Central", "Conversar com Arvik sobre rumores", "Descrever minha própria ação"]
 PREFERIR ações de ação/combate/risco quando a tensão permitir:
   ✓ "Sacar a arma e avançar para o perigo"
   ✓ "Proteger o taverneiro com o corpo"
@@ -1101,6 +1160,12 @@ ${recentRollCtx ? '\n━━ ROLAGEM RECENTE PARA RESOLVER ━━\n' + recentRoll
 ━━ AÇÃO DO JOGADOR AGORA ━━
 ${actingPlayerName ? `[${actingPlayerName}] ` : ''}${request.playerMessage}
 
+━━ DIRETRIZ DE MUNDO ABERTO PARA ESTA RESPOSTA ━━
+Se a ação do jogador apontar para mercado, guilda, arena, comércio, exploração, NPCs, rumores, descanso, roubo, trabalho, busca pessoal, negócio próprio ou qualquer rumo fora da missão principal, aceite o rumo e crie conteúdo jogável para ele.
+Não puxe de volta imediatamente para a missão principal. Mantenha a ameaça principal em segundo plano por rumores, eventos ou consequências futuras.
+Quando a cena estiver aberta, suggestedActions deve misturar rumos: missão principal, exploração/local, social/rumor e ação livre.
+Atualize memoryUpdates.summary com openHooks, activeRumors, worldEvents, playerChoices e unresolvedThreads em texto curto quando surgirem.
+
 ━━ INSTRUÇÃO DE FOCO ━━
 ${focusInstruction}
 Lembre-se: responda direcionado a ${char?.name ?? 'o personagem que agiu'}, não ao grupo todo.
@@ -1133,6 +1198,99 @@ function responseText(response: any): string {
     : typeof response.output_text === 'string'
     ? response.output_text
     : ''
+}
+
+function compactUniqueStrings(values: unknown[], limit: number): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const value of values) {
+    if (typeof value !== 'string') continue
+    const text = value.trim()
+    if (!text || seen.has(text.toLowerCase())) continue
+    seen.add(text.toLowerCase())
+    result.push(text)
+    if (result.length >= limit) break
+  }
+
+  return result
+}
+
+function booleanStoryFlags(value: unknown, fallback: Record<string, boolean>): Record<string, boolean> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback
+
+  return Object.entries(value).reduce<Record<string, boolean>>((acc, [key, flag]) => {
+    if (typeof flag === 'boolean') acc[key] = flag
+    return acc
+  }, { ...fallback })
+}
+
+function buildOpenWorldSuggestedActions(request: AIMasterRequest, parsed: any): string[] {
+  const location = String(parsed.memoryUpdates?.currentLocation || request.campaignMemory?.currentLocation || request.campaign.title || 'a região')
+  const threat = String(parsed.memoryUpdates?.currentThreat || request.campaignMemory?.currentThreat || '').trim()
+  const mainQuest = request.activeQuests?.find((quest) => quest.title && quest.title.trim())
+  const mainAction = mainQuest
+    ? `Investigar ${mainQuest.title}`
+    : threat
+      ? `Checar sinais de ${threat}`
+      : 'Investigar a ameaça de fundo'
+
+  return [
+    mainAction,
+    'Procurar trabalho na Guilda dos Aventureiros',
+    `Explorar um novo ponto de ${location}`,
+    'Conversar com NPCs locais sobre rumores',
+    'Descrever minha própria ação',
+  ]
+}
+
+function hasOpenWorldDiversity(actions: string[]): boolean {
+  const text = actions.join(' | ').toLowerCase()
+  const hasMain = /miss[aã]o|pista|investigar|amea[çc]a|desaparec|ritual|quest/.test(text)
+  const hasExplore = /explorar|visitar|distrito|mercado|estrada|esgoto|biblioteca|ru[aá]|local/.test(text)
+  const hasSocial = /conversar|rumor|npc|taverna|perguntar|guilda|aliado|inform/.test(text)
+  const hasFree = /descrever|minha pr[oó]pria a[çc][aã]o|outro rumo|a[çc][aã]o livre|livre/.test(text)
+
+  return hasMain && hasExplore && hasSocial && hasFree
+}
+
+function isOpenWorldMoment(request: AIMasterRequest, parsed: any): boolean {
+  const playerText = request.playerMessage.toLowerCase()
+  const location = String(parsed.memoryUpdates?.currentLocation || request.campaignMemory?.currentLocation || '').toLowerCase()
+  const scene = String(parsed.memoryUpdates?.currentScene || request.campaignMemory?.currentScene || '').toLowerCase()
+  const tensionLevel = Number(parsed.memoryUpdates?.tensionLevel ?? request.campaignMemory?.tensionLevel ?? 1)
+  const combatStarting = Boolean(parsed.combatEncounter?.shouldStartCombat)
+
+  if (combatStarting || tensionLevel >= 7) return false
+
+  return (
+    /mercado|guilda|arena|barraca|loja|fada|ignorar|n[aã]o quero|outro rumo|cidade|distrito|taverna|trabalho|rumor|esgoto/.test(playerText) ||
+    /cidade|vila|distrito|mercado|guilda|arena|taverna|estrada|acampamento|porto|pra[çc]a/.test(location) ||
+    /aberta|cidade|chegada|explora|social|rumor/.test(scene)
+  )
+}
+
+function normalizeSuggestedActions(request: AIMasterRequest, parsed: any): string[] {
+  const parsedActions = Array.isArray(parsed.suggestedActions)
+    ? compactUniqueStrings(parsed.suggestedActions, 5)
+    : []
+
+  let actions = parsedActions.length > 0
+    ? parsedActions
+    : buildOpenWorldSuggestedActions(request, parsed)
+
+  if (isOpenWorldMoment(request, parsed) && !hasOpenWorldDiversity(actions)) {
+    actions = compactUniqueStrings([...actions, ...buildOpenWorldSuggestedActions(request, parsed)], 5)
+  }
+
+  const freeAction = 'Descrever minha própria ação'
+  const hasFreeAction = actions.some((action) => /descrever|minha pr[oó]pria a[çc][aã]o|outro rumo|a[çc][aã]o livre/i.test(action))
+
+  if (!hasFreeAction) {
+    actions = actions.length >= 5 ? [...actions.slice(0, 4), freeAction] : [...actions, freeAction]
+  }
+
+  return actions.slice(0, 5)
 }
 
 function fallbackRollResolutionNarration(context: RollResolutionContext): string {
@@ -1290,9 +1448,7 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
   const parsed = safeParseResponse(text)
   const mem = request.campaignMemory
 
-  const suggestedActions = Array.isArray(parsed.suggestedActions)
-    ? parsed.suggestedActions.filter((a: unknown) => typeof a === 'string').slice(0, 4)
-    : []
+  const suggestedActions = normalizeSuggestedActions(request, parsed)
 
   const questsUpdates = Array.isArray(parsed.questsUpdates)
     ? parsed.questsUpdates.filter((q: any) => q?.action && q?.title)
@@ -1389,7 +1545,7 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
       discoveredClues: Array.isArray(parsed.memoryUpdates?.discoveredClues) ? parsed.memoryUpdates.discoveredClues : mem?.discoveredClues || [],
       activeNPCs:      Array.isArray(parsed.memoryUpdates?.activeNPCs)      ? parsed.memoryUpdates.activeNPCs      : mem?.activeNPCs      || [],
       activeEnemies:   Array.isArray(parsed.memoryUpdates?.activeEnemies)   ? parsed.memoryUpdates.activeEnemies   : mem?.activeEnemies   || [],
-      storyFlags:      typeof parsed.memoryUpdates?.storyFlags === 'object'  ? parsed.memoryUpdates.storyFlags      : mem?.storyFlags      || {},
+      storyFlags:      booleanStoryFlags(parsed.memoryUpdates?.storyFlags, mem?.storyFlags || {}),
       summary:         String(parsed.memoryUpdates?.summary || mem?.summary || ''),
     },
   }
@@ -1400,26 +1556,36 @@ export async function generateAIMasterResponse(request: AIMasterRequest): Promis
 function buildFallbackSuggestedActions(actionType: string | null, tensionLevel: number, location: string): string[] {
   const loc = location.toLowerCase()
   const isTaverna = loc.includes('taverna') || loc.includes('valdrak')
+  const isOpenHub = /cidade|vila|distrito|mercado|guilda|arena|pra[çc]a|porto|acampamento|estrada/.test(loc)
 
   if (actionType === 'ataque' || tensionLevel >= 7) {
-    return ['Atacar com tudo', 'Recuar e reagrupar', 'Usar item ou habilidade', 'Pedir ajuda']
+    return ['Atacar com tudo', 'Recuar e reagrupar', 'Usar item ou habilidade', 'Pedir ajuda', 'Descrever minha própria ação']
+  }
+  if (isOpenHub && tensionLevel < 7) {
+    return [
+      'Investigar a ameaça de fundo',
+      'Procurar trabalho na Guilda dos Aventureiros',
+      `Explorar outro ponto de ${location}`,
+      'Conversar com NPCs locais sobre rumores',
+      'Descrever minha própria ação',
+    ]
   }
   if (actionType === 'investigacao' || actionType === 'percepcao') {
-    return ['Examinar de perto', 'Procurar passagem oculta', 'Perguntar aos presentes', 'Registrar a descoberta']
+    return ['Examinar de perto', 'Procurar passagem oculta', 'Perguntar aos presentes', 'Registrar a descoberta', 'Descrever minha própria ação']
   }
   if (actionType === 'carisma') {
-    return ['Insistir na conversa', 'Oferecer algo em troca', 'Ameaçar discretamente', 'Tentar uma abordagem diferente']
+    return ['Insistir na conversa', 'Oferecer algo em troca', 'Ameaçar discretamente', 'Tentar uma abordagem diferente', 'Descrever minha própria ação']
   }
   if (actionType === 'arcano') {
-    return ['Lançar outro feitiço', 'Analisar a magia presente', 'Tentar dissipar o encantamento']
+    return ['Lançar outro feitiço', 'Analisar a magia presente', 'Tentar dissipar o encantamento', 'Descrever minha própria ação']
   }
   if (isTaverna && tensionLevel < 4) {
-    return ['Conversar com o taverneiro', 'Observar os clientes', 'Pedir informações sobre os desaparecimentos', 'Explorar o lado de fora']
+    return ['Conversar com o taverneiro', 'Visitar outro ponto da vila', 'Pedir informações sobre rumores', 'Procurar trabalho local', 'Descrever minha própria ação']
   }
   if (tensionLevel >= 4) {
-    return ['Avançar com cautela', 'Observar o ambiente', 'Escutar os sons', 'Preparar uma armadilha']
+    return ['Avançar com cautela', 'Procurar uma saída segura', 'Perguntar aos aliados sobre riscos', 'Preparar uma armadilha', 'Descrever minha própria ação']
   }
-  return ['Explorar o local', 'Investigar os arredores', 'Procurar por pistas', 'Falar com alguém']
+  return ['Investigar a ameaça de fundo', `Explorar os arredores de ${location}`, 'Procurar rumores com alguém local', 'Buscar uma atividade alternativa', 'Descrever minha própria ação']
 }
 
 function buildFallbackMemoryUpdates(campaignMemory: CampaignMemory | null): AIMasterResponse['memoryUpdates'] {
